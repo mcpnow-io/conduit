@@ -1,0 +1,305 @@
+#!/usr/bin/env php
+<?php
+
+/**
+ * Create first admin user and generate API token
+ */
+
+$root = dirname(dirname(__FILE__));
+require_once $root.'/scripts/__init_script__.php';
+
+final class PhabricatorBootstrapAdminWorkflow extends PhabricatorManagementWorkflow {
+
+  protected function didConstruct() {
+    $this
+      ->setName('bootstrap')
+      ->setExamples('**bootstrap_admin** --username admin --email admin@example.com')
+      ->setSynopsis(pht('Create the first admin user and generate an API token.'))
+      ->setArguments(array(
+        array(
+          'name' => 'username',
+          'param' => 'username',
+          'help' => pht('Username for the admin user (required)'),
+        ),
+        array(
+          'name' => 'email',
+          'param' => 'email',
+          'help' => pht('Email address for the admin user (required)'),
+        ),
+        array(
+          'name' => 'realname',
+          'param' => 'realname',
+          'help' => pht('Real name for the admin user (optional)'),
+        ),
+        array(
+          'name' => 'password',
+          'param' => 'password',
+          'help' => pht('Password for the admin user (optional)'),
+        ),
+        array(
+          'name' => 'force',
+          'help' => pht('Force creation even if admin user already exists'),
+        ),
+      ));
+  }
+
+  public function execute(PhutilArgumentParser $args) {
+    $username = $args->getArg('username');
+    $email = $args->getArg('email');
+    $realname = $args->getArg('realname');
+    $password = $args->getArg('password');
+    $force = $args->getArg('force');
+
+    if (!$username) {
+      throw new PhutilArgumentUsageException(
+        pht('Specify a username with --username'));
+    }
+
+    if (!$email) {
+      throw new PhutilArgumentUsageException(
+        pht('Specify an email with --email'));
+    }
+
+    if (!$realname) {
+      $realname = $username;
+    }
+
+    $console = PhutilConsole::getConsole();
+    $viewer = $this->getViewer();
+
+    // Validate email format
+    if (!PhabricatorUserEmail::isValidAddress($email)) {
+      throw new PhutilArgumentUsageException(
+        pht('Email address "%s" is not valid', $email));
+    }
+
+    $console->writeOut("Bootstrapping admin user...\n");
+
+    // Ensure password authentication provider is enabled
+    $this->ensurePasswordAuthProvider();
+
+    // Check if user already exists
+    $existing_user = id(new PhabricatorPeopleQuery())
+      ->setViewer($viewer)
+      ->withUsernames(array($username))
+      ->executeOne();
+
+    if ($existing_user && !$force) {
+      $console->writeOut(
+        "User '%s' already exists (PHID: %s)\n",
+        $username,
+        $existing_user->getPHID());
+      
+      // Check if already admin
+      if ($existing_user->getIsAdmin()) {
+        $console->writeOut("User is already an administrator.\n");
+        $user = $existing_user;
+      } else {
+        $console->writeOut("Making existing user an administrator...\n");
+        $user = $this->empowerUser($existing_user);
+      }
+    } else {
+      if ($existing_user && $force) {
+        $console->writeOut("Force flag set, updating existing user...\n");
+        $user = $existing_user;
+      } else {
+        $console->writeOut("Creating new user '%s'...\n", $username);
+        $user = $this->createUser($username, $email, $realname);
+      }
+
+      // Make user admin
+      if (!$user->getIsAdmin()) {
+        $console->writeOut("Making user an administrator...\n");
+        $user = $this->empowerUser($user);
+      }
+    }
+
+    // Set password if provided
+    if ($password) {
+      $console->writeOut("Setting password for user...\n");
+      $this->setUserPassword($user, $password);
+    }
+
+    // Generate API token
+    $console->writeOut("Generating API token...\n");
+    $token = $this->generateAPIToken($user);
+
+    $console->writeOut("\n=== BOOTSTRAP COMPLETE ===\n");
+    $console->writeOut("Username: %s\n", $user->getUsername());
+    $console->writeOut("Email: %s\n", $user->loadPrimaryEmail()->getAddress());
+    $console->writeOut("Real Name: %s\n", $user->getRealName());
+    $console->writeOut("User PHID: %s\n", $user->getPHID());
+    $console->writeOut("Admin: %s\n", $user->getIsAdmin() ? 'Yes' : 'No');
+    $console->writeOut("API Token: %s\n", $token->getToken());
+    $console->writeOut("Token PHID: %s\n", $token->getPHID());
+    $console->writeOut("\nYou can now use this token for API access.\n");
+    
+    if (!$password) {
+      $console->writeOut("To set a password for this user, visit: /auth/start/\n");
+    } else {
+      $console->writeOut("Password has been set for the user.\n");
+    }
+
+    return 0;
+  }
+
+  private function createUser($username, $email, $realname) {
+    $viewer = $this->getViewer();
+
+    $user = new PhabricatorUser();
+    $user->setUsername($username);
+    $user->setRealname($realname);
+    $user->setIsApproved(1);
+    $user->setIsEmailVerified(1);
+
+    // Save user first
+    $user->save();
+
+    // Create email
+    $email_obj = id(new PhabricatorUserEmail())
+      ->setAddress($email)
+      ->setIsVerified(1)
+      ->setIsPrimary(1)
+      ->setUserPHID($user->getPHID());
+    $email_obj->save();
+
+    return $user;
+  }
+
+  private function empowerUser($user) {
+    $xactions = array();
+    $xactions[] = $user->getApplicationTransactionTemplate()
+      ->setTransactionType(PhabricatorUserEmpowerTransaction::TRANSACTIONTYPE)
+      ->setNewValue(true);
+
+    $this->applyTransactions($user, $xactions);
+    return $user->reload();
+  }
+
+  private function generateAPIToken($user) {
+    $token = PhabricatorConduitToken::initializeNewToken(
+      $user->getPHID(),
+      PhabricatorConduitToken::TYPE_STANDARD);
+    $token->save();
+    return $token;
+  }
+
+  private function ensurePasswordAuthProvider() {
+    $console = PhutilConsole::getConsole();
+    
+    // Check if password auth provider already exists
+    $existing_config = id(new PhabricatorAuthProviderConfigQuery())
+      ->setViewer(PhabricatorUser::getOmnipotentUser())
+      ->withProviderClasses(array('PhabricatorPasswordAuthProvider'))
+      ->executeOne();
+    
+    if ($existing_config) {
+      if (!$existing_config->getIsEnabled()) {
+        $console->writeOut("Enabling existing password authentication provider...\n");
+        $this->enableAuthProvider($existing_config);
+      } else {
+        $console->writeOut("Password authentication provider already enabled.\n");
+      }
+      return $existing_config;
+    }
+    
+    $console->writeOut("Creating password authentication provider...\n");
+    
+    // Create a new password auth provider
+    $provider = new PhabricatorPasswordAuthProvider();
+    $config = $provider->getDefaultProviderConfig();
+    
+    $config->setProviderClass('PhabricatorPasswordAuthProvider');
+    $config->setProviderType('password');
+    $config->setProviderDomain('self');
+    $config->setIsEnabled(1);
+    $config->setShouldAllowLogin(1);
+    $config->setShouldAllowRegistration(1);
+    $config->setShouldAllowLink(0);  // Password providers can't be linked
+    $config->setShouldAllowUnlink(0); // Password providers can't be unlinked
+    $config->save();
+    
+    $console->writeOut("Password authentication provider created and enabled.\n");
+    return $config;
+  }
+
+  private function enableAuthProvider($config) {
+    $viewer = $this->getViewer();
+    
+    $xactions = array();
+    $xactions[] = id(new PhabricatorAuthProviderConfigTransaction())
+      ->setTransactionType(PhabricatorAuthProviderConfigTransaction::TYPE_ENABLE)
+      ->setNewValue(1);
+    
+    $xactions[] = id(new PhabricatorAuthProviderConfigTransaction())
+      ->setTransactionType(PhabricatorAuthProviderConfigTransaction::TYPE_LOGIN)
+      ->setNewValue(1);
+    
+    $xactions[] = id(new PhabricatorAuthProviderConfigTransaction())
+      ->setTransactionType(PhabricatorAuthProviderConfigTransaction::TYPE_REGISTRATION)
+      ->setNewValue(1);
+    
+    $editor = id(new PhabricatorAuthProviderConfigEditor())
+      ->setActor($viewer)
+      ->setContentSource($this->newContentSource())
+      ->setContinueOnMissingFields(true)
+      ->setContinueOnNoEffect(true);
+    
+    $editor->applyTransactions($config, $xactions);
+  }
+
+  private function setUserPassword($user, $password) {
+    $password_envelope = new PhutilOpaqueEnvelope($password);
+    $content_source = $this->newContentSource();
+    $account_type = PhabricatorAuthPassword::PASSWORD_TYPE_ACCOUNT;
+
+    // Check if user already has a password
+    $password_objects = id(new PhabricatorAuthPasswordQuery())
+      ->setViewer($this->getViewer())
+      ->withObjectPHIDs(array($user->getPHID()))
+      ->withPasswordTypes(array($account_type))
+      ->withIsRevoked(false)
+      ->execute();
+
+    if ($password_objects) {
+      $password_object = head($password_objects);
+    } else {
+      $password_object = PhabricatorAuthPassword::initializeNewPassword(
+        $user,
+        $account_type);
+    }
+
+    $password_object->setPassword($password_envelope, $user)->save();
+  }
+
+  final protected function applyTransactions(
+    PhabricatorUser $user,
+    array $xactions) {
+    assert_instances_of($xactions, 'PhabricatorUserTransaction');
+
+    $viewer = $this->getViewer();
+    $application = id(new PhabricatorPeopleApplication())->getPHID();
+    $content_source = $this->newContentSource();
+
+    $editor = $user->getApplicationTransactionEditor()
+      ->setActor($viewer)
+      ->setActingAsPHID($application)
+      ->setContentSource($content_source)
+      ->setContinueOnMissingFields(true)
+      ->setContinueOnNoEffect(true);
+
+    $editor->applyTransactions($user, $xactions);
+  }
+}
+
+// Create argument parser and run workflow
+$args = new PhutilArgumentParser($argv);
+$args->setSynopsis(<<<EOSYNOPSIS
+**bootstrap_admin** [__options__]
+    Bootstrap the first admin user and generate an API token.
+
+EOSYNOPSIS
+);
+
+$workflows = array(new PhabricatorBootstrapAdminWorkflow());
+$args->parseWorkflows($workflows);
