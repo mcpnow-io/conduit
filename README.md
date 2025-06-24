@@ -3,9 +3,13 @@ Conduit is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io/intr
 
 ## Conduit
 **Modern HTTP Client**: Built with `httpx` for HTTP/2 support and better performance
+
 **Sync & Async**: Both synchronous and asynchronous API clients
+
 **MCP Integration**: Ready-to-use MCP tools for task management
+
 **Type Safety**: Full type hints for better development experience
+
 **Secure**: Token-based authentication with environment variable configuration
 
 ## Installation
@@ -39,10 +43,10 @@ There are many ways in which you can participate in this project, for example:
 * Review [source code changes](https://github.com/mcpnow-io/conduit/pulls)
 * Review the [wiki](https://github.com/mcpnow-io/conduit/wiki) and make pull requests for anything from typos to additional and new content
 
-If you are interested in fixing issues and contributing directly to the code base, please see the document [How to Contribute](https://github.com/mcpnow-io/conduit/wiki/How-to-Contribute), which covers the following:
-* (First-Time Setup)[https://github.com/mcpnow-io/conduit/wiki/How-to-Contribute#first-time-setup]
-* (Submitting a Pull Request)[https://github.com/mcpnow-io/conduit/wiki/How-to-Contribute#submitting-a-pull-request]
-* (Running Unittests)[https://github.com/mcpnow-io/conduit/wiki/How-to-Contribute#running-unittests]
+If you are interested in fixing issues and contributing directly to the code base, please see the document [How to Contribute](https://github.com/mcpnow-io/conduit/wiki/How-to-Contribute)，其中涵盖以下内容：
+* [First-Time Setup](https://github.com/mcpnow-io/conduit/wiki/How-to-Contribute#first-time-setup)
+* [Submitting a Pull Request](https://github.com/mcpnow-io/conduit/wiki/How-to-Contribute#submitting-a-pull-request)
+* [Running Unittests](https://github.com/mcpnow-io/conduit/wiki/How-to-Contribute#running-unittests)
 
 ## License
 Copyright (c) 2025 mpcnow.io. All rights reserved.
