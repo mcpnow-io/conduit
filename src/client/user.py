@@ -1,19 +1,9 @@
-"""
-User management API client.
-"""
-
 from typing import Any, Dict, List
 
 from .base import BaseAsyncPhabricatorClient, BasePhabricatorClient
 
 
 class UserClient(BasePhabricatorClient):
-    """
-    Client for User management API operations.
-
-    Handles user search, editing, and authentication operations.
-    """
-
     def search_users(
         self, constraints: Dict[str, Any] = None, limit: int = 100
     ) -> Dict[str, Any]:

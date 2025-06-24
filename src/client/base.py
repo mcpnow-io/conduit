@@ -1,7 +1,3 @@
-"""
-Base client and shared components for Phabricator API.
-"""
-
 import json
 import urllib.parse
 from abc import ABC
@@ -11,8 +7,6 @@ import httpx
 
 
 class PhabricatorAPIError(Exception):
-    """Exception raised for Phabricator API errors."""
-
     def __init__(
         self,
         message: str,
@@ -25,13 +19,6 @@ class PhabricatorAPIError(Exception):
 
 
 class BasePhabricatorClient(ABC):
-    """
-    Base client for Phabricator API interactions.
-
-    Provides common functionality for making API requests and handling responses.
-    All specific API clients should inherit from this base class.
-    """
-
     def __init__(
         self, api_url: str, api_token: str, http_client: Optional[httpx.Client] = None
     ):
@@ -67,7 +54,7 @@ class BasePhabricatorClient(ABC):
 
         Args:
             method: API method name (e.g., 'maniphest.search')
-            params: Parameters to send with the request
+            params: Parameters to send with the request, every value is JSON formatted
 
         Returns:
             Response data from the API
@@ -79,21 +66,16 @@ class BasePhabricatorClient(ABC):
         if params is None:
             params = {}
 
-        # Add API token to params
         params["api.token"] = self.api_token
 
-        # Build the URL
         url = urllib.parse.urljoin(self.api_url, method)
 
         try:
-            # Make the request
             response = self.client.post(url, data=params)
             response.raise_for_status()
 
-            # Parse JSON response
             data = response.json()
 
-            # Check for API errors
             if data.get("error_code"):
                 raise PhabricatorAPIError(
                     message=f"API Error: {data.get('error_info', 'Unknown error')}",

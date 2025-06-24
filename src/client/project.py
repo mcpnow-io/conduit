@@ -1,19 +1,9 @@
-"""
-Project management API client.
-"""
-
 from typing import Any, Dict, List
 
 from .base import BaseAsyncPhabricatorClient, BasePhabricatorClient
 
 
 class ProjectClient(BasePhabricatorClient):
-    """
-    Client for Project management API operations.
-
-    Handles project creation, search, updates, and workboard operations.
-    """
-
     def search_projects(
         self, constraints: Dict[str, Any] = None, limit: int = 100
     ) -> Dict[str, Any]:
