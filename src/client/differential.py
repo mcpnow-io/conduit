@@ -1,6 +1,6 @@
 from typing import Any, Dict, List
 
-from .base import BaseAsyncPhabricatorClient, BasePhabricatorClient
+from .base import BasePhabricatorClient
 
 
 class DifferentialClient(BasePhabricatorClient):
@@ -268,46 +268,3 @@ class DifferentialClient(BasePhabricatorClient):
             Result
         """
         return self._make_request("differential.close", {"revisionID": revision_id})
-
-
-class AsyncDifferentialClient(BaseAsyncPhabricatorClient):
-    """
-    Async client for Differential (Code Review) API operations.
-    """
-
-    async def search_revisions(
-        self, constraints: Dict[str, Any] = None, limit: int = 100
-    ) -> Dict[str, Any]:
-        """Search for revisions asynchronously."""
-        params = {"limit": limit}
-        if constraints:
-            params["constraints"] = constraints
-        return await self._make_request("differential.revision.search", params)
-
-    async def edit_revision(
-        self, transactions: List[Dict[str, Any]], object_identifier: str = None
-    ) -> Dict[str, Any]:
-        """Edit a revision asynchronously."""
-        params = {"transactions": transactions}
-        if object_identifier:
-            params["objectIdentifier"] = object_identifier
-        return await self._make_request("differential.revision.edit", params)
-
-    async def create_diff(
-        self,
-        changes: List[Dict[str, Any]],
-        source_control_system: str = "git",
-        source_control_path: str = "/",
-        source_control_base_revision: str = None,
-    ) -> Dict[str, Any]:
-        """Create a diff asynchronously."""
-        params = {
-            "changes": changes,
-            "sourceControlSystem": source_control_system,
-            "sourceControlPath": source_control_path,
-        }
-
-        if source_control_base_revision:
-            params["sourceControlBaseRevision"] = source_control_base_revision
-
-        return await self._make_request("differential.creatediff", params)

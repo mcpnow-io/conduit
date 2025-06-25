@@ -1,8 +1,8 @@
 from .base import PhabricatorAPIError
-from .differential import AsyncDifferentialClient, DifferentialClient
-from .diffusion import AsyncDiffusionClient, DiffusionClient
-from .file import AsyncFileClient, FileClient
-from .maniphest import AsyncManiphestClient, ManiphestClient
+from .differential import DifferentialClient
+from .diffusion import DiffusionClient
+from .file import FileClient
+from .maniphest import ManiphestClient
 from .misc import (
     ConduitClient,
     FlagClient,
@@ -13,29 +13,19 @@ from .misc import (
     PhrictionClient,
     RemarkupClient,
 )
-from .project import AsyncProjectClient, ProjectClient
-from .unified import AsyncPhabricatorClient, PhabricatorClient
-from .user import AsyncUserClient, UserClient
+from .project import ProjectClient
+from .unified import PhabricatorClient
+from .user import UserClient
 
 __all__ = [
-    # Main clients (backward compatible)
     "PhabricatorClient",
-    "AsyncPhabricatorClient",
     "PhabricatorAPIError",
-    # Module-specific clients
     "ManiphestClient",
-    "AsyncManiphestClient",
     "DifferentialClient",
-    "AsyncDifferentialClient",
     "DiffusionClient",
-    "AsyncDiffusionClient",
     "ProjectClient",
-    "AsyncProjectClient",
     "UserClient",
-    "AsyncUserClient",
     "FileClient",
-    "AsyncFileClient",
-    # Specialized clients
     "ConduitClient",
     "HarbormasterClient",
     "PasteClient",

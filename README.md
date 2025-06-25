@@ -12,23 +12,33 @@ Conduit is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io/intr
 
 **Secure**: Token-based authentication with environment variable configuration
 
-## Installation
-1. Clone the repository
-2. Install dependencies: `pip install -r requirements.txt`
-3. Configure environment variables (see Configuration section)
-4. Run the server: `python src/conduit.py`
+## Usage
+### Via `uvx`
+You need to install `uv` first. If it is not installed, run the following command:
+```sh
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+After installation, restart your shell or terminal to apply the environment variable changes.
+
+Then run:
+```sh
+uvx --from git+https://github.com/mcpnow-io/conduit conduit-mcp
+```
+
+### Docker
+We are still working on Docker support. We estimate it will be available soon.
 
 ## Configuration
 Before running the server, you need to set up the following environment variables:
 
-### Required Environment Variables
+### Environment Variables
 
 ```bash
-# Your Phabricator API token (32 characters)
 export PHABRICATOR_TOKEN=your-api-token-here
+export PHABRICATOR_URL="https://your-phabricator-instance.com/api/"
 
-# Your Phabricator API URL
-export PHABRICATOR_URL=https://your-phabricator-instance.com/api/
+export PHABRICATOR_PROXY="socks5://127.0.0.1:1080"  # Optional, if your network is behind a firewall
+export PHABRICATOR_DISABLE_CERT_VERIFY=1  # Optional, if your network is under HTTPS filter (WARNING: Disabling certificate verification can expose you to security risks. Only set this if you trust your network environment.)
 ```
 
 ### Getting Your API Token

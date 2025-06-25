@@ -10,6 +10,10 @@ class PhabricatorConfig(object):
     def __init__(self):
         self.token = os.getenv("PHABRICATOR_TOKEN")
         self.url = os.getenv("PHABRICATOR_URL")
+        self.proxy = os.getenv("PHABRICATOR_PROXY")
+        self.disable_cert_verify = os.getenv(
+            "PHABRICATOR_DISABLE_CERT_VERIFY", ""
+        ).lower() in ("1", "true", "yes")
 
         if not self.token:
             raise ValueError("PHABRICATOR_TOKEN environment variable is required")
@@ -52,7 +56,12 @@ def get_client():
     global client
     if client is None:
         config = get_config()
-        client = PhabricatorClient(config.url, config.token)
+        client = PhabricatorClient(
+            config.url,
+            config.token,
+            proxy=config.proxy,
+            disable_cert_verify=config.disable_cert_verify,
+        )
     return client
 
 
@@ -62,6 +71,12 @@ def main():
     print("Starting Conduit MCP Server...")
     print(f"Phabricator URL: {config.url}")
     print(f"Token configured: {'Yes' if config.token else 'No'}")
+    print(f"Proxy configured: {'Yes' if config.proxy else 'No'}")
+    if config.proxy:
+        print(f"Proxy URL: {config.proxy}")
+    print(
+        f"SSL certificate verification: {'Disabled' if config.disable_cert_verify else 'Enabled'}"
+    )
 
     register_tools(mcp, get_client)
 

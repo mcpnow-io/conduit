@@ -1,6 +1,6 @@
 from typing import Any, Dict
 
-from .base import BaseAsyncPhabricatorClient, BasePhabricatorClient, PhabricatorAPIError
+from .base import BasePhabricatorClient, PhabricatorAPIError
 
 
 class FileClient(BasePhabricatorClient):
@@ -142,36 +142,3 @@ class FileClient(BasePhabricatorClient):
             params["phid"] = file_phid
 
         return self._make_request("file.info", params)
-
-
-class AsyncFileClient(BaseAsyncPhabricatorClient):
-    """
-    Async client for File management API operations.
-    """
-
-    async def search_files(
-        self, constraints: Dict[str, Any] = None, limit: int = 100
-    ) -> Dict[str, Any]:
-        """Search for files asynchronously."""
-        params = {"limit": limit}
-        if constraints:
-            params["constraints"] = constraints
-        return await self._make_request("file.search", params)
-
-    async def get_file_info(self, file_phid: str) -> Dict[str, Any]:
-        """Get file information asynchronously."""
-        params = {"constraints": {"phids": [file_phid]}}
-
-        result = await self._make_request("file.search", params)
-
-        if result.get("data"):
-            return result["data"][0]
-        else:
-            raise PhabricatorAPIError(f"File {file_phid} not found")
-
-    async def upload_file(self, data: bytes, name: str = None) -> Dict[str, Any]:
-        """Upload a file asynchronously."""
-        params = {"data_base64": data}
-        if name:
-            params["name"] = name
-        return await self._make_request("file.upload", params)
