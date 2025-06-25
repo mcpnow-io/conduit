@@ -139,18 +139,6 @@ class ManiphestClient(BasePhabricatorClient):
         params = constraints or {}
         return self._make_request("maniphest.query", params)
 
-    def get_task_info(self, task_id: int) -> Dict[str, Any]:
-        """
-        Retrieve information about a Maniphest task (legacy method).
-
-        Args:
-            task_id: Task ID
-
-        Returns:
-            Task information
-        """
-        return self._make_request("maniphest.info", {"task_id": task_id})
-
     def get_priority_info(self) -> Dict[str, Any]:
         """
         Read information about task priorities.

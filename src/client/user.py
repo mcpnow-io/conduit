@@ -1,5 +1,7 @@
 from typing import Any, Dict, List
 
+from src.client.types import UserInfo
+
 from .base import BaseAsyncPhabricatorClient, BasePhabricatorClient
 
 
@@ -40,7 +42,7 @@ class UserClient(BasePhabricatorClient):
 
         return self._make_request("user.edit", params)
 
-    def whoami(self) -> Dict[str, Any]:
+    def whoami(self) -> UserInfo:
         """
         Retrieve information about the logged-in user.
 
