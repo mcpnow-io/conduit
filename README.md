@@ -4,8 +4,6 @@ Conduit is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io/intr
 ## Conduit
 **Modern HTTP Client**: Built with `httpx` for HTTP/2 support and better performance
 
-**Sync & Async**: Both synchronous and asynchronous API clients
-
 **MCP Integration**: Ready-to-use MCP tools for task management
 
 **Type Safety**: Full type hints for better development experience
@@ -28,18 +26,30 @@ uvx --from git+https://github.com/mcpnow-io/conduit conduit-mcp
 ### Docker
 We are still working on Docker support. We estimate it will be available soon.
 
+### As HTTP/SSE Server
+Conduit can run as an HTTP/SSE server for multi-user scenarios. This mode allows multiple clients to connect simultaneously, each using their own authentication tokens.
+
+```sh
+conduit-mcp --host 127.0.0.1 --port 8000 # or using python3 run.py if not installed this repo as package
+```
+When running as an HTTP server, authentication tokens are provided via HTTP headers instead of environment variables.
+
+```
+X-PHABRICATOR-TOKEN: your-32-character-token-here
+```
+
 ## Configuration
 Before running the server, you need to set up the following environment variables:
 
 ### Environment Variables
-
-```bash
+```sh
 export PHABRICATOR_TOKEN=your-api-token-here
 export PHABRICATOR_URL="https://your-phabricator-instance.com/api/"
 
 export PHABRICATOR_PROXY="socks5://127.0.0.1:1080"  # Optional, if your network is behind a firewall
 export PHABRICATOR_DISABLE_CERT_VERIFY=1  # Optional, if your network is under HTTPS filter (WARNING: Disabling certificate verification can expose you to security risks. Only set this if you trust your network environment.)
 ```
+Do note that in HTTPS/SSE mode, `PHABRICATOR_TOKEN` is NOT needed.
 
 ### Getting Your API Token
 1. Log into your Phabricator instance
