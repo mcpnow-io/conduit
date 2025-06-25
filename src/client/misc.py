@@ -1,17 +1,9 @@
-"""
-Additional API clients for specialized Phabricator components.
-"""
-
 from typing import Any, Dict, List
 
 from .base import BasePhabricatorClient
 
 
 class ConduitClient(BasePhabricatorClient):
-    """
-    Client for Conduit (API) meta-operations.
-    """
-
     def ping(self) -> Dict[str, Any]:
         """
         Basic ping for monitoring or health check.

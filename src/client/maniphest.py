@@ -1,19 +1,11 @@
-"""
-Maniphest (Task Management) API client.
-"""
-
-from typing import Any, Dict, List
+import json
+from typing import Any, Dict, List, Optional, Union
 
 from .base import BaseAsyncPhabricatorClient, BasePhabricatorClient, PhabricatorAPIError
+from .types import PHID, ManiphestTaskInfo, PolicyID
 
 
 class ManiphestClient(BasePhabricatorClient):
-    """
-    Client for Maniphest (Task Management) API operations.
-
-    Handles task creation, search, updates, and other task-related operations.
-    """
-
     def search_tasks(
         self, constraints: Dict[str, Any] = None, limit: int = 100
     ) -> Dict[str, Any]:
@@ -34,7 +26,7 @@ class ManiphestClient(BasePhabricatorClient):
 
         return self._make_request("maniphest.search", params)
 
-    def get_task(self, task_id: int) -> Dict[str, Any]:
+    def get_task(self, task_id: int) -> ManiphestTaskInfo:
         """
         Get a specific task by ID.
 
@@ -44,52 +36,66 @@ class ManiphestClient(BasePhabricatorClient):
         Returns:
             Task data
         """
-        constraints = {"ids": [task_id]}
-        result = self.search_tasks(constraints=constraints, limit=1)
+        params = {"task_id": task_id}
 
-        if result.get("data"):
-            return result["data"][0]
-        else:
-            raise PhabricatorAPIError(f"Task {task_id} not found")
+        return self._make_request("maniphest.info", params)
 
     def create_task(
         self,
         title: str,
-        description: str = "",
-        owner_phid: str = None,
-        project_phids: List[str] = None,
-        priority: str = None,
+        description: Optional[str] = "",
+        owner_phid: Optional[str] = None,
+        view_policy: Optional[Union[PHID, PolicyID]] = None,
+        edit_policy: Optional[Union[PHID, PolicyID]] = None,
+        cc_phids: Optional[List[PHID]] = None,
+        priority: Optional[int] = None,
+        project_phids: Optional[List[PHID]] = None,
+        auxiliary: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Create a new Maniphest task.
 
         Args:
             title: Task title
-            description: Task description
+            description: Task description in Phabricator Markdown format
             owner_phid: PHID of the task owner
-            project_phids: List of project PHIDs to associate with the task
-            priority: Task priority ('unbreak', 'high', 'normal', 'low', 'wish')
+            viewPolicy: optional phid or policy string
+            editPolicy: optional phid or policy string
+            cc_phids: List of PHIDs to add as CCs
+            priority: Task priority (0/25/50/80/90/100, where 100 is highest)
+            project_phids: List of PHIDs for projects to associate with the task
+            auxiliary: Additional auxiliary data to include in the task
 
         Returns:
             Created task data
         """
-        transactions = [{"type": "title", "value": title}]
+        params = {"title": title}
 
         if description:
-            transactions.append({"type": "description", "value": description})
+            params["description"] = description
 
         if owner_phid:
-            transactions.append({"type": "owner", "value": owner_phid})
+            params["ownerPHID"] = owner_phid
 
-        if project_phids:
-            transactions.append({"type": "projects.set", "value": project_phids})
+        if view_policy:
+            params["viewPolicy"] = view_policy
+
+        if edit_policy:
+            params["editPolicy"] = edit_policy
+
+        if cc_phids:
+            params["ccPHIDs"] = json.dumps(cc_phids)
 
         if priority:
-            transactions.append({"type": "priority", "value": priority})
+            params["priority"] = priority
 
-        params = {"transactions": transactions}
+        if project_phids:
+            params["projectPHIDs"] = json.dumps(project_phids)
 
-        return self._make_request("maniphest.edit", params)
+        if auxiliary:
+            params["auxiliary"] = json.dumps(auxiliary)
+
+        return self._make_request("maniphest.createtask", params)
 
     def update_task(
         self, task_id: int, transactions: List[Dict[str, Any]]

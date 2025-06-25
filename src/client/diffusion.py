@@ -1,19 +1,9 @@
-"""
-Diffusion (Repository) API client.
-"""
-
 from typing import Any, Dict, List
 
 from .base import BaseAsyncPhabricatorClient, BasePhabricatorClient
 
 
 class DiffusionClient(BasePhabricatorClient):
-    """
-    Client for Diffusion (Repository) API operations.
-
-    Handles repository management, browsing, and version control operations.
-    """
-
     def search_repositories(
         self, constraints: Dict[str, Any] = None, limit: int = 100
     ) -> Dict[str, Any]:

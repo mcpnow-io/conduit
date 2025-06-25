@@ -1,19 +1,9 @@
-"""
-Differential (Code Review) API client.
-"""
-
 from typing import Any, Dict, List
 
 from .base import BaseAsyncPhabricatorClient, BasePhabricatorClient
 
 
 class DifferentialClient(BasePhabricatorClient):
-    """
-    Client for Differential (Code Review) API operations.
-
-    Handles revision creation, search, updates, and other code review operations.
-    """
-
     def search_revisions(
         self, constraints: Dict[str, Any] = None, limit: int = 100
     ) -> Dict[str, Any]:

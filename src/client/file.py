@@ -1,19 +1,9 @@
-"""
-File management API client.
-"""
-
 from typing import Any, Dict
 
 from .base import BaseAsyncPhabricatorClient, BasePhabricatorClient, PhabricatorAPIError
 
 
 class FileClient(BasePhabricatorClient):
-    """
-    Client for File management API operations.
-
-    Handles file upload, download, search, and other file operations.
-    """
-
     def search_files(
         self, constraints: Dict[str, Any] = None, limit: int = 100
     ) -> Dict[str, Any]:

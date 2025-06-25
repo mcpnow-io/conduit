@@ -1,7 +1,3 @@
-"""
-Unified Phabricator client that provides access to all API modules.
-"""
-
 import httpx
 
 from .differential import AsyncDifferentialClient, DifferentialClient
@@ -22,36 +18,20 @@ from .project import AsyncProjectClient, ProjectClient
 from .user import AsyncUserClient, UserClient
 
 
-class PhabricatorClient:
-    """
-    Unified Phabricator client that provides access to all API modules.
-
-    This client creates sub-clients for each major Phabricator component
-    and shares a single HTTP connection between them for efficiency.
-    """
-
+class PhabricatorClient(object):
     def __init__(self, api_url: str, api_token: str):
-        """
-        Initialize the unified Phabricator client.
-
-        Args:
-            api_url: Base URL for the Phabricator API (e.g., https://example.com/api/)
-            api_token: API token for authentication
-        """
         self.api_url = api_url.rstrip("/") + "/"
         self.api_token = api_token
 
-        # Create shared HTTP client
         self.http_client = httpx.Client(
             headers={
                 "Content-Type": "application/x-www-form-urlencoded",
                 "User-Agent": "ModelContextProtocol/1.0 (Autonomous; +https://github.com/modelcontextprotocol/servers)",
             },
-            timeout=30.0,
+            timeout=30,
             follow_redirects=True,
         )
 
-        # Initialize all sub-clients
         self.maniphest = ManiphestClient(api_url, api_token, self.http_client)
         self.differential = DifferentialClient(api_url, api_token, self.http_client)
         self.diffusion = DiffusionClient(api_url, api_token, self.http_client)
@@ -67,62 +47,14 @@ class PhabricatorClient:
         self.flag = FlagClient(api_url, api_token, self.http_client)
         self.phid = PhidClient(api_url, api_token, self.http_client)
 
-    # Convenience methods from the original client for backward compatibility
-    def test_connection(self):
-        """Test the API connection."""
-        return self.user.test_connection()
-
-    def search_tasks(self, constraints=None, limit=100):
-        """Search for Maniphest tasks."""
-        return self.maniphest.search_tasks(constraints, limit)
-
-    def get_task(self, task_id):
-        """Get a specific task by ID."""
-        return self.maniphest.get_task(task_id)
-
-    def create_task(
-        self, title, description="", owner_phid=None, project_phids=None, priority=None
-    ):
-        """Create a new Maniphest task."""
-        return self.maniphest.create_task(
-            title, description, owner_phid, project_phids, priority
-        )
-
-    def update_task(self, task_id, transactions):
-        """Update an existing task."""
-        return self.maniphest.update_task(task_id, transactions)
-
-    def search_projects(self, constraints=None, limit=100):
-        """Search for projects."""
-        return self.project.search_projects(constraints, limit)
-
-    def search_users(self, constraints=None, limit=100):
-        """Search for users."""
-        return self.user.search_users(constraints, limit)
-
-    def search_repositories(self, constraints=None, limit=100):
-        """Search for repositories."""
-        return self.diffusion.search_repositories(constraints, limit)
-
-    def search_revisions(self, constraints=None, limit=100):
-        """Search for Differential revisions."""
-        return self.differential.search_revisions(constraints, limit)
-
-    def get_file_info(self, file_phid):
-        """Get information about a file."""
-        return self.file.get_file_info(file_phid)
-
     def close(self):
-        """Close the HTTP client."""
         if self.http_client:
             self.http_client.close()
 
     def __enter__(self):
-        """Context manager entry."""
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit."""
         self.close()
 
 
