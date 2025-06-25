@@ -2,7 +2,7 @@ from typing import Any, Dict, List
 
 from src.client.types import UserInfo
 
-from .base import BaseAsyncPhabricatorClient, BasePhabricatorClient
+from .base import BasePhabricatorClient
 
 
 class UserClient(BasePhabricatorClient):
@@ -72,26 +72,3 @@ class UserClient(BasePhabricatorClient):
             User information if successful
         """
         return self.whoami()
-
-
-class AsyncUserClient(BaseAsyncPhabricatorClient):
-    """
-    Async client for User management API operations.
-    """
-
-    async def search_users(
-        self, constraints: Dict[str, Any] = None, limit: int = 100
-    ) -> Dict[str, Any]:
-        """Search for users asynchronously."""
-        params = {"limit": limit}
-        if constraints:
-            params["constraints"] = constraints
-        return await self._make_request("user.search", params)
-
-    async def whoami(self) -> Dict[str, Any]:
-        """Get current user information asynchronously."""
-        return await self._make_request("user.whoami")
-
-    async def test_connection(self) -> Dict[str, Any]:
-        """Test the API connection asynchronously."""
-        return await self.whoami()

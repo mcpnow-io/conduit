@@ -1,6 +1,6 @@
 from typing import Any, Dict, List
 
-from .base import BaseAsyncPhabricatorClient, BasePhabricatorClient
+from .base import BasePhabricatorClient
 
 
 class DiffusionClient(BasePhabricatorClient):
@@ -364,36 +364,3 @@ class DiffusionClient(BasePhabricatorClient):
             Result
         """
         return self._make_request("diffusion.looksoon", {"repository": repository})
-
-
-class AsyncDiffusionClient(BaseAsyncPhabricatorClient):
-    """
-    Async client for Diffusion (Repository) API operations.
-    """
-
-    async def search_repositories(
-        self, constraints: Dict[str, Any] = None, limit: int = 100
-    ) -> Dict[str, Any]:
-        """Search for repositories asynchronously."""
-        params = {"limit": limit}
-        if constraints:
-            params["constraints"] = constraints
-        return await self._make_request("diffusion.repository.search", params)
-
-    async def browse_repository(
-        self, repository: str, path: str = "", commit: str = None
-    ) -> Dict[str, Any]:
-        """Browse repository asynchronously."""
-        params = {"repository": repository, "path": path}
-        if commit:
-            params["commit"] = commit
-        return await self._make_request("diffusion.browsequery", params)
-
-    async def get_file_content(
-        self, repository: str, path: str, commit: str = None
-    ) -> Dict[str, Any]:
-        """Get file content asynchronously."""
-        params = {"repository": repository, "path": path}
-        if commit:
-            params["commit"] = commit
-        return await self._make_request("diffusion.filecontentquery", params)

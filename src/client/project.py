@@ -1,6 +1,6 @@
 from typing import Any, Dict, List
 
-from .base import BaseAsyncPhabricatorClient, BasePhabricatorClient
+from .base import BasePhabricatorClient
 
 
 class ProjectClient(BasePhabricatorClient):
@@ -99,42 +99,3 @@ class ProjectClient(BasePhabricatorClient):
         """
         params = constraints or {}
         return self._make_request("project.query", params)
-
-
-class AsyncProjectClient(BaseAsyncPhabricatorClient):
-    """
-    Async client for Project management API operations.
-    """
-
-    async def search_projects(
-        self, constraints: Dict[str, Any] = None, limit: int = 100
-    ) -> Dict[str, Any]:
-        """Search for projects asynchronously."""
-        params = {"limit": limit}
-        if constraints:
-            params["constraints"] = constraints
-        return await self._make_request("project.search", params)
-
-    async def edit_project(
-        self, transactions: List[Dict[str, Any]], object_identifier: str = None
-    ) -> Dict[str, Any]:
-        """Edit a project asynchronously."""
-        params = {"transactions": transactions}
-        if object_identifier:
-            params["objectIdentifier"] = object_identifier
-        return await self._make_request("project.edit", params)
-
-    async def create_project(
-        self, name: str, description: str = "", icon: str = None, color: str = None
-    ) -> Dict[str, Any]:
-        """Create a project asynchronously."""
-        transactions = [{"type": "name", "value": name}]
-
-        if description:
-            transactions.append({"type": "description", "value": description})
-        if icon:
-            transactions.append({"type": "icon", "value": icon})
-        if color:
-            transactions.append({"type": "color", "value": color})
-
-        return await self.edit_project(transactions)
