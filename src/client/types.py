@@ -24,3 +24,13 @@ class ManiphestTaskInfo(TypedDict):
     dateCreated: str  # Unix timestamp
     dateModified: str  # Unix timestamp
     dependsOnTaskPHIDs: List[PHID]
+
+
+class UserInfo(TypedDict):
+    phid: PHID
+    userName: str
+    realName: str
+    image: str
+    uri: str
+    roles: List[str]
+    primaryEmail: str
