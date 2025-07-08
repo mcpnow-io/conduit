@@ -10,6 +10,7 @@ from src.tools import register_tools
 
 class PhabricatorConfig(object):
     def __init__(self, token=None, require_token=True):
+        self.user_agent_filter = os.getenv("CONDUIT_USER_AGENT_FILTER")
         self.token = token or os.getenv("PHABRICATOR_TOKEN")
         self.url = os.getenv("PHABRICATOR_URL")
         self.proxy = os.getenv("PHABRICATOR_PROXY")
@@ -62,6 +63,11 @@ def get_client():
     http_token = headers.get("x-phabricator-token")
 
     config = get_config()
+
+    if config.user_agent_filter and use_sse:
+        user_agent = headers.get("user-agent", "")
+        if config.user_agent_filter not in user_agent:
+            raise ValueError("Access denied")
 
     if http_token:
         if len(http_token) != 32:
