@@ -95,6 +95,24 @@ class BasePhabricatorClient(ABC):
         if self._owns_client and self.client:
             self.client.close()
 
+    @classmethod
+    def flatten_params(cls, d, prefix=""):
+        params = []
+        if isinstance(d, dict):
+            for k, v in d.items():
+                if prefix:
+                    new_prefix = f"{prefix}[{k}]"
+                else:
+                    new_prefix = str(k)
+                params.extend(cls.flatten_params(v, new_prefix))
+        elif isinstance(d, list):
+            for i, v in enumerate(d):
+                new_prefix = f"{prefix}[{i}]"
+                params.extend(cls.flatten_params(v, new_prefix))
+        else:
+            params.append((prefix, d))
+        return params
+
     def __enter__(self):
         """Context manager entry."""
         return self

@@ -2,7 +2,7 @@ import json
 from typing import Any, Dict, List, Optional, Union
 
 from .base import BasePhabricatorClient
-from .types import PHID, ManiphestTaskInfo, PolicyID
+from .types import PHID, ManiphestTaskInfo, ManiphestTaskTransaction, PolicyID
 
 
 class ManiphestClient(BasePhabricatorClient):
@@ -97,20 +97,32 @@ class ManiphestClient(BasePhabricatorClient):
 
         return self._make_request("maniphest.createtask", params)
 
-    def update_task(
-        self, task_id: int, transactions: List[Dict[str, Any]]
+    def edit_task(
+        self,
+        object_identifier: Optional[Union[int, PHID, str]] = None,
+        transactions: Optional[List[ManiphestTaskTransaction]] = None,
     ) -> Dict[str, Any]:
         """
-        Update an existing task.
+        Create a new task or edit an existing one using the maniphest.edit endpoint.
 
         Args:
-            task_id: ID of the task to update
-            transactions: List of transaction objects
+            object_identifier: Optional task ID, PHID, or object name to edit.
+                             If None, creates a new task.
+            transactions: List of transaction objects to apply
 
         Returns:
-            Updated task data
+            Task data (created or updated)
         """
-        params = {"objectIdentifier": task_id, "transactions": transactions}
+        params = {}
+
+        if object_identifier is not None:
+            params["objectIdentifier"] = object_identifier
+
+        if transactions:
+            params = {
+                **{k: v for k, v in self.flatten_params(transactions, "transactions")},
+                **params,
+            }
 
         return self._make_request("maniphest.edit", params)
 
@@ -165,3 +177,167 @@ class ManiphestClient(BasePhabricatorClient):
             Status values
         """
         return self._make_request("maniphest.querystatuses")
+
+    # Convenience methods for creating common transaction types
+    @staticmethod
+    def create_title_transaction(title: str) -> ManiphestTaskTransaction:
+        """Create a transaction to update task title."""
+        return {"type": "title", "value": title}
+
+    @staticmethod
+    def create_description_transaction(description: str) -> ManiphestTaskTransaction:
+        """Create a transaction to update task description."""
+        return {"type": "description", "value": description}
+
+    @staticmethod
+    def create_owner_transaction(
+        owner_phid: Optional[PHID],
+    ) -> ManiphestTaskTransaction:
+        """Create a transaction to update task owner."""
+        return {"type": "owner", "value": owner_phid}
+
+    @staticmethod
+    def create_status_transaction(status: str) -> ManiphestTaskTransaction:
+        """Create a transaction to update task status."""
+        return {"type": "status", "value": status}
+
+    @staticmethod
+    def create_priority_transaction(priority: str) -> ManiphestTaskTransaction:
+        """Create a transaction to update task priority."""
+        return {"type": "priority", "value": priority}
+
+    @staticmethod
+    def create_comment_transaction(comment: str) -> ManiphestTaskTransaction:
+        """Create a transaction to add a comment."""
+        return {"type": "comment", "value": comment}
+
+    @staticmethod
+    def create_projects_add_transaction(
+        project_phids: List[PHID],
+    ) -> ManiphestTaskTransaction:
+        """Create a transaction to add project tags."""
+        return {"type": "projects.add", "value": project_phids}
+
+    @staticmethod
+    def create_projects_remove_transaction(
+        project_phids: List[PHID],
+    ) -> ManiphestTaskTransaction:
+        """Create a transaction to remove project tags."""
+        return {"type": "projects.remove", "value": project_phids}
+
+    @staticmethod
+    def create_projects_set_transaction(
+        project_phids: List[PHID],
+    ) -> ManiphestTaskTransaction:
+        """Create a transaction to set project tags (overwriting current)."""
+        return {"type": "projects.set", "value": project_phids}
+
+    @staticmethod
+    def create_subscribers_add_transaction(
+        user_phids: List[PHID],
+    ) -> ManiphestTaskTransaction:
+        """Create a transaction to add subscribers."""
+        return {"type": "subscribers.add", "value": user_phids}
+
+    @staticmethod
+    def create_subscribers_remove_transaction(
+        user_phids: List[PHID],
+    ) -> ManiphestTaskTransaction:
+        """Create a transaction to remove subscribers."""
+        return {"type": "subscribers.remove", "value": user_phids}
+
+    @staticmethod
+    def create_subscribers_set_transaction(
+        user_phids: List[PHID],
+    ) -> ManiphestTaskTransaction:
+        """Create a transaction to set subscribers (overwriting current)."""
+        return {"type": "subscribers.set", "value": user_phids}
+
+    @staticmethod
+    def create_parent_transaction(parent_phid: PHID) -> ManiphestTaskTransaction:
+        """Create a transaction to set task as subtask of another task."""
+        return {"type": "parent", "value": parent_phid}
+
+    @staticmethod
+    def create_parents_add_transaction(
+        parent_phids: List[PHID],
+    ) -> ManiphestTaskTransaction:
+        """Create a transaction to add parent tasks."""
+        return {"type": "parents.add", "value": parent_phids}
+
+    @staticmethod
+    def create_parents_remove_transaction(
+        parent_phids: List[PHID],
+    ) -> ManiphestTaskTransaction:
+        """Create a transaction to remove parent tasks."""
+        return {"type": "parents.remove", "value": parent_phids}
+
+    @staticmethod
+    def create_parents_set_transaction(
+        parent_phids: List[PHID],
+    ) -> ManiphestTaskTransaction:
+        """Create a transaction to set parent tasks (overwriting current)."""
+        return {"type": "parents.set", "value": parent_phids}
+
+    @staticmethod
+    def create_subtasks_add_transaction(
+        subtask_phids: List[PHID],
+    ) -> ManiphestTaskTransaction:
+        """Create a transaction to add subtasks."""
+        return {"type": "subtasks.add", "value": subtask_phids}
+
+    @staticmethod
+    def create_subtasks_remove_transaction(
+        subtask_phids: List[PHID],
+    ) -> ManiphestTaskTransaction:
+        """Create a transaction to remove subtasks."""
+        return {"type": "subtasks.remove", "value": subtask_phids}
+
+    @staticmethod
+    def create_subtasks_set_transaction(
+        subtask_phids: List[PHID],
+    ) -> ManiphestTaskTransaction:
+        """Create a transaction to set subtasks (overwriting current)."""
+        return {"type": "subtasks.set", "value": subtask_phids}
+
+    @staticmethod
+    def create_column_transaction(
+        column_phid: PHID,
+        before_phids: Optional[List[PHID]] = None,
+        after_phids: Optional[List[PHID]] = None,
+    ) -> ManiphestTaskTransaction:
+        """Create a transaction to move task to a workboard column."""
+        if before_phids or after_phids:
+            column_position = {"columnPHID": column_phid}
+            if before_phids:
+                column_position["beforePHIDs"] = before_phids
+            if after_phids:
+                column_position["afterPHIDs"] = after_phids
+            return {"type": "column", "value": [column_position]}
+        else:
+            return {"type": "column", "value": column_phid}
+
+    @staticmethod
+    def create_space_transaction(space_phid: PHID) -> ManiphestTaskTransaction:
+        """Create a transaction to move task to a different space."""
+        return {"type": "space", "value": space_phid}
+
+    @staticmethod
+    def create_view_policy_transaction(policy: str) -> ManiphestTaskTransaction:
+        """Create a transaction to change view policy."""
+        return {"type": "view", "value": policy}
+
+    @staticmethod
+    def create_edit_policy_transaction(policy: str) -> ManiphestTaskTransaction:
+        """Create a transaction to change edit policy."""
+        return {"type": "edit", "value": policy}
+
+    @staticmethod
+    def create_subtype_transaction(subtype: str) -> ManiphestTaskTransaction:
+        """Create a transaction to change object subtype."""
+        return {"type": "subtype", "value": subtype}
+
+    @staticmethod
+    def create_mfa_transaction(require_mfa: bool = True) -> ManiphestTaskTransaction:
+        """Create a transaction to require MFA for this transaction group."""
+        return {"type": "mfa", "value": require_mfa}
