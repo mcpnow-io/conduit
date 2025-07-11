@@ -124,7 +124,7 @@ RUN service mysql start && \
         sleep 1; \
     done && \
     cd /opt/phorge && \
-    ./bin/init_phabricator bootstrap --username admin --email admin@example.com > /tmp/bootstrap_output.txt 2>&1 && \
+    ./bin/init_phabricator bootstrap --username admin --password Passw0rd --email admin@example.com > /tmp/bootstrap_output.txt 2>&1 && \
     grep "API Token:" /tmp/bootstrap_output.txt | cut -d' ' -f3 > /opt/phorge/api_token.txt && \
     cat /tmp/bootstrap_output.txt && \
     echo "API Token saved to /opt/phorge/api_token.txt" && \
