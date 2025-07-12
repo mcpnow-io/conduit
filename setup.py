@@ -29,7 +29,7 @@ if dev_requirements_path.exists():
 
 setup(
     name="conduit-mcp",
-    version="0.1.3",
+    version="0.1.4",
     author="mcpnow.io",
     author_email="support@mcpnow.io",
     description="The MCP Server for Phabricator and Phorge",
