@@ -2,27 +2,70 @@ import json
 from typing import Any, Dict, List, Optional, Union
 
 from .base import BasePhabricatorClient
-from .types import PHID, ManiphestTaskInfo, ManiphestTaskTransaction, PolicyID
+from .types import (
+    PHID,
+    ManiphestSearchAttachments,
+    ManiphestSearchConstraints,
+    ManiphestSearchResults,
+    ManiphestTaskInfo,
+    ManiphestTaskTransaction,
+    PolicyID,
+)
 
 
 class ManiphestClient(BasePhabricatorClient):
     def search_tasks(
-        self, constraints: Dict[str, Any] = None, limit: int = 100
-    ) -> Dict[str, Any]:
+        self,
+        query_key: Optional[str] = None,
+        constraints: Optional[ManiphestSearchConstraints] = None,
+        attachments: Optional[ManiphestSearchAttachments] = None,
+        order: Optional[Union[str, List[str]]] = None,
+        before: Optional[str] = None,
+        after: Optional[str] = None,
+        limit: int = 100,
+    ) -> ManiphestSearchResults:
         """
-        Search for Maniphest tasks.
+        Search for Maniphest tasks using the modern search API.
 
         Args:
+            query_key: Builtin query key ("assigned", "authored", "subscribed", "open", "all")
             constraints: Search constraints (e.g., {'statuses': ['open']})
-            limit: Maximum number of results to return
+            attachments: Additional data to include in results
+            order: Result ordering (builtin key or list of columns)
+            before: Cursor for previous page
+            after: Cursor for next page
+            limit: Maximum number of results to return (default: 100)
 
         Returns:
-            Search results with task data
+            Search results with task data, cursor info, and attachments
         """
         params = {"limit": limit}
 
+        if query_key:
+            params["queryKey"] = query_key
+
         if constraints:
-            params["constraints"] = constraints
+            # Use flatten_params like edit_task does
+            flattened_constraints = dict(
+                self.flatten_params(constraints, "constraints")
+            )
+            params.update(flattened_constraints)
+
+        if attachments:
+            # Use flatten_params for attachments too
+            flattened_attachments = dict(
+                self.flatten_params(attachments, "attachments")
+            )
+            params.update(flattened_attachments)
+
+        if order:
+            params["order"] = order
+
+        if before:
+            params["before"] = before
+
+        if after:
+            params["after"] = after
 
         return self._make_request("maniphest.search", params)
 
@@ -341,3 +384,140 @@ class ManiphestClient(BasePhabricatorClient):
     def create_mfa_transaction(require_mfa: bool = True) -> ManiphestTaskTransaction:
         """Create a transaction to require MFA for this transaction group."""
         return {"type": "mfa", "value": require_mfa}
+
+    # Helper methods for common search operations
+    def search_open_tasks(
+        self, attachments: Optional[ManiphestSearchAttachments] = None, limit: int = 100
+    ) -> ManiphestSearchResults:
+        """
+        Search for open tasks using builtin query.
+
+        Args:
+            attachments: Additional data to include in results
+            limit: Maximum number of results to return
+
+        Returns:
+            Search results with open tasks
+        """
+        return self.search_tasks(query_key="open", attachments=attachments, limit=limit)
+
+    def search_assigned_tasks(
+        self, attachments: Optional[ManiphestSearchAttachments] = None, limit: int = 100
+    ) -> ManiphestSearchResults:
+        """
+        Search for tasks assigned to the current user.
+
+        Args:
+            attachments: Additional data to include in results
+            limit: Maximum number of results to return
+
+        Returns:
+            Search results with assigned tasks
+        """
+        return self.search_tasks(
+            query_key="assigned", attachments=attachments, limit=limit
+        )
+
+    def search_authored_tasks(
+        self, attachments: Optional[ManiphestSearchAttachments] = None, limit: int = 100
+    ) -> ManiphestSearchResults:
+        """
+        Search for tasks authored by the current user.
+
+        Args:
+            attachments: Additional data to include in results
+            limit: Maximum number of results to return
+
+        Returns:
+            Search results with authored tasks
+        """
+        return self.search_tasks(
+            query_key="authored", attachments=attachments, limit=limit
+        )
+
+    def search_tasks_by_status(
+        self,
+        statuses: List[str],
+        attachments: Optional[ManiphestSearchAttachments] = None,
+        limit: int = 100,
+    ) -> ManiphestSearchResults:
+        """
+        Search for tasks with specific statuses.
+
+        Args:
+            statuses: List of status names to search for
+            attachments: Additional data to include in results
+            limit: Maximum number of results to return
+
+        Returns:
+            Search results with tasks matching the statuses
+        """
+        return self.search_tasks(
+            constraints={"statuses": statuses}, attachments=attachments, limit=limit
+        )
+
+    def search_tasks_by_project(
+        self,
+        projects: List[str],
+        attachments: Optional[ManiphestSearchAttachments] = None,
+        limit: int = 100,
+    ) -> ManiphestSearchResults:
+        """
+        Search for tasks tagged with specific projects.
+
+        Args:
+            projects: List of project names or PHIDs
+            attachments: Additional data to include in results
+            limit: Maximum number of results to return
+
+        Returns:
+            Search results with tasks tagged with the projects
+        """
+        return self.search_tasks(
+            constraints={"projects": projects}, attachments=attachments, limit=limit
+        )
+
+    def search_tasks_by_assignee(
+        self,
+        assignees: List[str],
+        attachments: Optional[ManiphestSearchAttachments] = None,
+        limit: int = 100,
+    ) -> ManiphestSearchResults:
+        """
+        Search for tasks assigned to specific users.
+
+        Args:
+            assignees: List of usernames or PHIDs
+            attachments: Additional data to include in results
+            limit: Maximum number of results to return
+
+        Returns:
+            Search results with tasks assigned to the users
+        """
+        return self.search_tasks(
+            constraints={"assigned": assignees}, attachments=attachments, limit=limit
+        )
+
+    def fulltext_search_tasks(
+        self,
+        query: str,
+        attachments: Optional[ManiphestSearchAttachments] = None,
+        limit: int = 100,
+    ) -> ManiphestSearchResults:
+        """
+        Perform fulltext search on tasks.
+
+        Args:
+            query: Search query string
+            attachments: Additional data to include in results
+            limit: Maximum number of results to return
+
+        Returns:
+            Search results ordered by relevance
+        """
+        return self.search_tasks(
+            constraints={"query": query},
+            order="relevance",
+            attachments=attachments,
+            limit=limit,
+        )

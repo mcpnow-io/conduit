@@ -1,4 +1,4 @@
-from typing import Any, List, Literal, TypedDict, Union
+from typing import Any, List, Literal, Optional, TypedDict, Union
 
 PHID = str
 PolicyID = str
@@ -117,27 +117,16 @@ class ManiphestTaskTransactionSubtasksSet(ManiphestTaskTransactionBase):
     value: List[PHID]
 
 
-class ManiphestTaskTransactionCommitsAdd(ManiphestTaskTransactionBase):
-    type: Literal["commits.add"]
-    value: List[PHID]
-
-
-class ManiphestTaskTransactionCommitsRemove(ManiphestTaskTransactionBase):
-    type: Literal["commits.remove"]
-    value: List[PHID]
-
-
-class ManiphestTaskTransactionCommitsSet(ManiphestTaskTransactionBase):
-    type: Literal["commits.set"]
-    value: List[PHID]
-
-
 class ManiphestTaskTransactionView(ManiphestTaskTransactionBase):
+    """Change the view policy of the object."""
+
     type: Literal["view"]
     value: str
 
 
 class ManiphestTaskTransactionEdit(ManiphestTaskTransactionBase):
+    """Change the edit policy of the object."""
+
     type: Literal["edit"]
     value: str
 
@@ -203,9 +192,6 @@ ManiphestTaskTransaction = Union[
     ManiphestTaskTransactionSubtasksAdd,
     ManiphestTaskTransactionSubtasksRemove,
     ManiphestTaskTransactionSubtasksSet,
-    ManiphestTaskTransactionCommitsAdd,
-    ManiphestTaskTransactionCommitsRemove,
-    ManiphestTaskTransactionCommitsSet,
     ManiphestTaskTransactionView,
     ManiphestTaskTransactionEdit,
     ManiphestTaskTransactionProjectsAdd,
@@ -218,3 +204,96 @@ ManiphestTaskTransaction = Union[
     ManiphestTaskTransactionComment,
     ManiphestTaskTransactionMFA,
 ]
+
+
+# Search-related types for maniphest.search
+class ManiphestSearchConstraints(TypedDict, total=False):
+    """Constraints for maniphest.search API"""
+
+    ids: List[int]
+    phids: List[PHID]
+    assigned: List[str]  # usernames or PHIDs
+    authorPHIDs: List[PHID]
+    statuses: List[str]
+    priorities: List[int]
+    subtypes: List[str]
+    columnPHIDs: List[PHID]
+    hasParents: bool
+    hasSubtasks: bool
+    parentIDs: List[int]
+    subtaskIDs: List[int]
+    createdStart: int  # epoch timestamp
+    createdEnd: int  # epoch timestamp
+    modifiedStart: int  # epoch timestamp
+    modifiedEnd: int  # epoch timestamp
+    closedStart: int  # epoch timestamp
+    closedEnd: int  # epoch timestamp
+    closerPHIDs: List[PHID]
+    query: str  # fulltext search
+    subscribers: List[str]  # usernames or PHIDs
+    projects: List[str]  # project names or PHIDs
+
+
+class ManiphestSearchAttachments(TypedDict, total=False):
+    """Attachments for maniphest.search API"""
+
+    columns: bool
+    subscribers: bool
+    projects: bool
+
+
+class ManiphestSearchCursor(TypedDict, total=False):
+    """Cursor information for paging through search results"""
+
+    limit: int
+    after: Optional[str]
+    before: Optional[str]
+    order: Optional[str]
+
+
+class ManiphestTaskSearchFields(TypedDict, total=False):
+    """Fields returned in search results"""
+
+    name: str  # This is the task title
+    description: dict  # Structure: {"raw": "description text"}
+    authorPHID: PHID
+    ownerPHID: Optional[PHID]
+    status: dict  # Structure: {"value": "open", "name": "Open", "color": null}
+    priority: (
+        dict  # Structure: {"value": 90, "name": "Needs Triage", "color": "violet"}
+    )
+    points: Optional[float]
+    subtype: str
+    closerPHID: Optional[PHID]
+    dateClosed: Optional[int]
+    spacePHID: Optional[PHID]
+    dateCreated: int
+    dateModified: int
+    policy: dict  # map of capabilities to policies
+
+
+class ManiphestTaskSearchAttachmentData(TypedDict, total=False):
+    """Attachment data in search results"""
+
+    subscribers: dict
+    projects: dict
+    columns: dict
+
+
+class ManiphestTaskSearchResult(TypedDict):
+    """Individual task result from search"""
+
+    id: int
+    type: str  # Usually "TASK"
+    phid: PHID
+    fields: ManiphestTaskSearchFields
+    attachments: Optional[ManiphestTaskSearchAttachmentData]
+
+
+class ManiphestSearchResults(TypedDict):
+    """Complete search results structure"""
+
+    data: List[ManiphestTaskSearchResult]
+    cursor: ManiphestSearchCursor
+    query: dict
+    maps: dict
