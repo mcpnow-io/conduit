@@ -538,3 +538,560 @@ def register_tools(  # noqa: C901
         )
 
         return {"success": True, "recently_updated_tasks": result}
+
+    # Diffusion (Repository) Tools
+
+    @mcp.tool()
+    @handle_api_errors
+    def search_repositories(
+        name_contains: str = "",
+        vcs_type: str = "",
+        status: str = "",
+        limit: int = 50,
+    ) -> dict:
+        """
+        Search for repositories in Phabricator.
+
+        Args:
+            name_contains: Filter repositories by name containing this string
+            vcs_type: Filter by version control system ("git", "hg", "svn")
+            status: Filter by repository status ("active", "inactive")
+            limit: Maximum number of results to return
+
+        Returns:
+            List of repositories matching the criteria
+        """
+        client = get_client_func()
+
+        constraints = {}
+        if name_contains:
+            constraints["name"] = name_contains
+        if vcs_type:
+            constraints["vcs"] = vcs_type
+        if status:
+            constraints["status"] = status
+
+        result = client.diffusion.search_repositories(
+            constraints=constraints if constraints else None, limit=limit
+        )
+
+        return {"success": True, "repositories": result}
+
+    @mcp.tool()
+    @handle_api_errors
+    def create_repository(
+        name: str,
+        vcs_type: str = "git",
+        description: str = "",
+        callsign: str = "",
+    ) -> dict:
+        """
+        Create a new repository in Phabricator.
+
+        Args:
+            name: Repository name
+            vcs_type: Version control system type ("git", "hg", "svn")
+            description: Repository description
+            callsign: Optional repository callsign
+
+        Returns:
+            Created repository information
+        """
+        client = get_client_func()
+
+        result = client.diffusion.create_repository(
+            name=name,
+            vcs_type=vcs_type,
+            description=description,
+            callsign=callsign if callsign else None,
+        )
+
+        return {"success": True, "repository": result}
+
+    @mcp.tool()
+    @handle_api_errors
+    def get_repository_info(repository_identifier: str) -> dict:
+        """
+        Get detailed information about a specific repository.
+
+        Args:
+            repository_identifier: Repository ID, PHID, callsign, or name
+
+        Returns:
+            Repository information
+        """
+        client = get_client_func()
+
+        # Try to find the repository by searching
+        result = client.diffusion.search_repositories(
+            constraints=(
+                {"callsigns": [repository_identifier]}
+                if repository_identifier.isupper()
+                else {"names": [repository_identifier]}
+            ),
+            limit=1,
+        )
+
+        if result.get("data"):
+            return {"success": True, "repository": result["data"][0]}
+        else:
+            return {
+                "success": False,
+                "error": f"Repository '{repository_identifier}' not found",
+            }
+
+    @mcp.tool()
+    @handle_api_errors
+    def browse_repository_files(
+        repository: str,
+        path: str = "/",
+        commit: str = "",
+    ) -> dict:
+        """
+        Browse files and directories in a repository.
+
+        Args:
+            repository: Repository identifier (PHID, callsign, or name)
+            path: Path to browse (default: root "/")
+            commit: Specific commit to browse (default: latest)
+
+        Returns:
+            List of files and directories at the specified path
+        """
+        client = get_client_func()
+
+        result = client.diffusion.browse_query(
+            repository=repository,
+            path=path if path else "/",
+            commit=commit if commit else None,
+        )
+
+        return {"success": True, "browse_result": result}
+
+    @mcp.tool()
+    @handle_api_errors
+    def get_file_content(
+        repository: str,
+        file_path: str,
+        commit: str = "",
+    ) -> dict:
+        """
+        Get the content of a specific file from a repository.
+
+        Args:
+            repository: Repository identifier (PHID, callsign, or name)
+            file_path: Path to the file
+            commit: Specific commit (default: latest)
+
+        Returns:
+            File content and metadata
+        """
+        client = get_client_func()
+
+        result = client.diffusion.file_content_query(
+            repository=repository, path=file_path, commit=commit if commit else None
+        )
+
+        return {"success": True, "file_content": result}
+
+    @mcp.tool()
+    @handle_api_errors
+    def get_repository_history(
+        repository: str,
+        path: str = "",
+        commit: str = "",
+        limit: int = 20,
+    ) -> dict:
+        """
+        Get commit history for a repository or specific path.
+
+        Args:
+            repository: Repository identifier (PHID, callsign, or name)
+            path: Specific path to get history for (optional)
+            commit: Starting commit (default: latest)
+            limit: Maximum number of commits to return
+
+        Returns:
+            Commit history
+        """
+        client = get_client_func()
+
+        result = client.diffusion.history_query(
+            repository=repository,
+            path=path if path else None,
+            commit=commit if commit else None,
+            limit=limit,
+        )
+
+        return {"success": True, "history": result}
+
+    @mcp.tool()
+    @handle_api_errors
+    def get_repository_branches(repository: str) -> dict:
+        """
+        Get all branches in a repository.
+
+        Args:
+            repository: Repository identifier (PHID, callsign, or name)
+
+        Returns:
+            List of branches
+        """
+        client = get_client_func()
+
+        result = client.diffusion.branch_query(repository=repository)
+
+        return {"success": True, "branches": result}
+
+    @mcp.tool()
+    @handle_api_errors
+    def search_repository_commits(
+        repository: str = "",
+        author: str = "",
+        message_contains: str = "",
+        limit: int = 20,
+    ) -> dict:
+        """
+        Search for commits across repositories.
+
+        Args:
+            repository: Repository identifier to search in (optional)
+            author: Filter by commit author
+            message_contains: Filter by commit message containing this text
+            limit: Maximum number of results to return
+
+        Returns:
+            List of matching commits
+        """
+        client = get_client_func()
+
+        constraints = {}
+        if repository:
+            constraints["repositories"] = [repository]
+        if author:
+            constraints["authors"] = [author]
+        if message_contains:
+            constraints["query"] = message_contains
+
+        result = client.diffusion.search_commits(
+            constraints=constraints if constraints else None, limit=limit
+        )
+
+        return {"success": True, "commits": result}
+
+    # Differential (Code Review) Tools
+
+    @mcp.tool()
+    @handle_api_errors
+    def create_diff_from_content(
+        diff_content: str,
+        repository: str = "",
+    ) -> dict:
+        """
+        Create a diff from raw diff content.
+
+        Args:
+            diff_content: Raw unified diff content
+            repository: Repository identifier to associate with (optional)
+
+        Returns:
+            Created diff information
+        """
+        client = get_client_func()
+
+        repository_phid = None
+        if repository:
+            # Try to resolve repository to PHID
+            repos = client.diffusion.search_repositories(
+                constraints=(
+                    {"callsigns": [repository]}
+                    if repository.isupper()
+                    else {"names": [repository]}
+                ),
+                limit=1,
+            )
+            if repos.get("data"):
+                repository_phid = repos["data"][0]["phid"]
+
+        result = client.differential.create_raw_diff(
+            diff=diff_content, repository_phid=repository_phid
+        )
+
+        return {"success": True, "diff": result}
+
+    @mcp.tool()
+    @handle_api_errors
+    def create_code_review(
+        diff_id: str,
+        title: str,
+        summary: str = "",
+        test_plan: str = "",
+        reviewers: List[str] = [],
+    ) -> dict:
+        """
+        Create a new code review (Differential revision).
+
+        Args:
+            diff_id: ID or PHID of the diff to review
+            title: Review title
+            summary: Detailed description of the changes
+            test_plan: How the changes were tested
+            reviewers: List of reviewer usernames or PHIDs
+
+        Returns:
+            Created revision information
+        """
+        client = get_client_func()
+
+        transactions = [
+            {"type": "title", "value": title},
+            {"type": "update", "value": diff_id},
+        ]
+
+        if summary:
+            transactions.append({"type": "summary", "value": summary})
+        if test_plan:
+            transactions.append({"type": "testPlan", "value": test_plan})
+        if reviewers:
+            transactions.append({"type": "reviewers.add", "value": reviewers})
+
+        result = client.differential.edit_revision(transactions=transactions)
+
+        return {"success": True, "revision": result}
+
+    @mcp.tool()
+    @handle_api_errors
+    def search_code_reviews(
+        author: str = "",
+        reviewer: str = "",
+        status: str = "",
+        repository: str = "",
+        title_contains: str = "",
+        limit: int = 50,
+    ) -> dict:
+        """
+        Search for code reviews (Differential revisions).
+
+        Args:
+            author: Filter by author username or PHID
+            reviewer: Filter by reviewer username or PHID
+            status: Filter by status ("open", "closed", "abandoned", "accepted")
+            repository: Filter by repository name or PHID
+            title_contains: Filter by title containing this text
+            limit: Maximum number of results to return
+
+        Returns:
+            List of matching code reviews
+        """
+        client = get_client_func()
+
+        constraints = {}
+        if author:
+            constraints["authors"] = [author]
+        if reviewer:
+            constraints["reviewers"] = [reviewer]
+        if status:
+            constraints["statuses"] = [status]
+        if repository:
+            constraints["repositories"] = [repository]
+        if title_contains:
+            constraints["query"] = title_contains
+
+        result = client.differential.search_revisions(
+            constraints=constraints if constraints else None, limit=limit
+        )
+
+        return {"success": True, "revisions": result}
+
+    @mcp.tool()
+    @handle_api_errors
+    def get_code_review_details(revision_id: str) -> dict:
+        """
+        Get detailed information about a specific code review.
+
+        Args:
+            revision_id: Revision ID (e.g., "D123") or PHID
+
+        Returns:
+            Detailed revision information
+        """
+        client = get_client_func()
+
+        # Parse revision ID if in "D123" format
+        if revision_id.startswith("D"):
+            revision_id = revision_id[1:]
+
+        result = client.differential.search_revisions(
+            constraints={"ids": [int(revision_id)]}, limit=1
+        )
+
+        if result.get("data"):
+            return {"success": True, "revision": result["data"][0]}
+        else:
+            return {"success": False, "error": f"Revision {revision_id} not found"}
+
+    @mcp.tool()
+    @handle_api_errors
+    def add_review_comment(
+        revision_id: str,
+        comment: str,
+        action: str = "comment",
+    ) -> dict:
+        """
+        Add a comment to a code review.
+
+        Args:
+            revision_id: Revision ID (e.g., "D123") or PHID
+            comment: Comment text
+            action: Review action ("comment", "accept", "reject", "request-changes")
+
+        Returns:
+            Success status
+        """
+        client = get_client_func()
+
+        transactions = [{"type": "comment", "value": comment}]
+
+        if action == "accept":
+            transactions.append({"type": "accept", "value": True})
+        elif action == "reject":
+            transactions.append({"type": "reject", "value": True})
+        elif action == "request-changes":
+            transactions.append({"type": "request-changes", "value": True})
+
+        client.differential.edit_revision(
+            transactions=transactions, object_identifier=revision_id
+        )
+
+        return {"success": True, "comment_added": True}
+
+    @mcp.tool()
+    @handle_api_errors
+    def update_code_review(
+        revision_id: str,
+        new_diff_id: str = "",
+        title: str = "",
+        summary: str = "",
+        test_plan: str = "",
+        comment: str = "",
+    ) -> dict:
+        """
+        Update an existing code review with new diff or metadata.
+
+        Args:
+            revision_id: Revision ID (e.g., "D123") or PHID
+            new_diff_id: New diff ID or PHID to update the review with
+            title: New title (optional)
+            summary: New summary (optional)
+            test_plan: New test plan (optional)
+            comment: Comment explaining the update
+
+        Returns:
+            Updated revision information
+        """
+        client = get_client_func()
+
+        transactions = []
+
+        if new_diff_id:
+            transactions.append({"type": "update", "value": new_diff_id})
+        if title:
+            transactions.append({"type": "title", "value": title})
+        if summary:
+            transactions.append({"type": "summary", "value": summary})
+        if test_plan:
+            transactions.append({"type": "testPlan", "value": test_plan})
+        if comment:
+            transactions.append({"type": "comment", "value": comment})
+
+        if not transactions:
+            return {"success": False, "error": "No updates specified"}
+
+        result = client.differential.edit_revision(
+            transactions=transactions, object_identifier=revision_id
+        )
+
+        return {"success": True, "revision": result}
+
+    @mcp.tool()
+    @handle_api_errors
+    def get_diff_content(diff_id: str) -> dict:
+        """
+        Get the raw content of a diff.
+
+        Args:
+            diff_id: Diff ID or PHID
+
+        Returns:
+            Raw diff content
+        """
+        client = get_client_func()
+
+        # Parse diff ID if needed
+        if diff_id.isdigit():
+            diff_id = int(diff_id)
+
+        result = client.differential.get_raw_diff(diff_id=diff_id)
+
+        return {"success": True, "diff_content": result}
+
+    @mcp.tool()
+    @handle_api_errors
+    def search_diffs(
+        revision_id: str = "",
+        repository: str = "",
+        author: str = "",
+        limit: int = 20,
+    ) -> dict:
+        """
+        Search for diffs in the system.
+
+        Args:
+            revision_id: Filter by specific revision ID
+            repository: Filter by repository name or PHID
+            author: Filter by author username or PHID
+            limit: Maximum number of results to return
+
+        Returns:
+            List of matching diffs
+        """
+        client = get_client_func()
+
+        constraints = {}
+        if revision_id:
+            if revision_id.startswith("D"):
+                revision_id = revision_id[1:]
+            # Use the correct constraint name for revision IDs
+            constraints["revisions"] = [int(revision_id)]
+        if repository:
+            constraints["repositories"] = [repository]
+        if author:
+            constraints["authors"] = [author]
+
+        result = client.differential.search_diffs(
+            constraints=constraints if constraints else None, limit=limit
+        )
+
+        return {"success": True, "diffs": result}
+
+    @mcp.tool()
+    @handle_api_errors
+    def get_commit_message_template(revision_id: str) -> dict:
+        """
+        Get a commit message template for a code review.
+
+        Args:
+            revision_id: Revision ID (e.g., "D123") or PHID
+
+        Returns:
+            Formatted commit message template
+        """
+        client = get_client_func()
+
+        # Parse revision ID if in "D123" format
+        if revision_id.startswith("D"):
+            revision_id = revision_id[1:]
+
+        result = client.differential.get_commit_message(revision_id=int(revision_id))
+
+        return {"success": True, "commit_message": result}

@@ -20,7 +20,10 @@ class DifferentialClient(BasePhabricatorClient):
         params = {"limit": limit}
 
         if constraints:
-            params["constraints"] = constraints
+            flattened_constraints = dict(
+                self.flatten_params(constraints, "constraints")
+            )
+            params.update(flattened_constraints)
 
         return self._make_request("differential.revision.search", params)
 
@@ -37,9 +40,15 @@ class DifferentialClient(BasePhabricatorClient):
         Returns:
             Revision data
         """
-        params = {"transactions": transactions}
+        params = {}
         if object_identifier:
             params["objectIdentifier"] = object_identifier
+
+        if transactions:
+            params = {
+                **{k: v for k, v in self.flatten_params(transactions, "transactions")},
+                **params,
+            }
 
         return self._make_request("differential.revision.edit", params)
 
@@ -57,8 +66,12 @@ class DifferentialClient(BasePhabricatorClient):
             Diff information
         """
         params = {"limit": limit}
+
         if constraints:
-            params["constraints"] = constraints
+            flattened_constraints = dict(
+                self.flatten_params(constraints, "constraints")
+            )
+            params.update(flattened_constraints)
 
         return self._make_request("differential.diff.search", params)
 
@@ -76,8 +89,12 @@ class DifferentialClient(BasePhabricatorClient):
             Changeset information
         """
         params = {"limit": limit}
+
         if constraints:
-            params["constraints"] = constraints
+            flattened_constraints = dict(
+                self.flatten_params(constraints, "constraints")
+            )
+            params.update(flattened_constraints)
 
         return self._make_request("differential.changeset.search", params)
 
@@ -101,13 +118,17 @@ class DifferentialClient(BasePhabricatorClient):
             Created diff data
         """
         params = {
-            "changes": changes,
             "sourceControlSystem": source_control_system,
             "sourceControlPath": source_control_path,
         }
 
         if source_control_base_revision:
             params["sourceControlBaseRevision"] = source_control_base_revision
+
+        # Flatten changes properly
+        if changes:
+            flattened_changes = dict(self.flatten_params(changes, "changes"))
+            params.update(flattened_changes)
 
         return self._make_request("differential.creatediff", params)
 
@@ -268,3 +289,157 @@ class DifferentialClient(BasePhabricatorClient):
             Result
         """
         return self._make_request("differential.close", {"revisionID": revision_id})
+
+    def query_revisions(
+        self,
+        ids: List[int] = None,
+        phids: List[str] = None,
+        authors: List[str] = None,
+        reviewers: List[str] = None,
+        paths: List[str] = None,
+        commit_hashes: List[str] = None,
+        status: str = None,
+        order: str = None,
+        limit: int = None,
+        offset: int = None,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Query Differential revisions which match certain criteria (legacy method).
+
+        Args:
+            ids: List of revision IDs
+            phids: List of revision PHIDs
+            authors: List of author PHIDs
+            reviewers: List of reviewer PHIDs
+            paths: List of paths
+            commit_hashes: List of commit hashes
+            status: Status filter
+            order: Order by field
+            limit: Maximum results
+            offset: Result offset
+            **kwargs: Additional query parameters
+
+        Returns:
+            Query results
+        """
+        params = {}
+
+        if ids:
+            params["ids"] = ids
+        if phids:
+            params["phids"] = phids
+        if authors:
+            params["authors"] = authors
+        if reviewers:
+            params["reviewers"] = reviewers
+        if paths:
+            params["paths"] = paths
+        if commit_hashes:
+            params["commitHashes"] = commit_hashes
+        if status:
+            params["status"] = status
+        if order:
+            params["order"] = order
+        if limit:
+            params["limit"] = limit
+        if offset:
+            params["offset"] = offset
+
+        params.update(kwargs)
+        return self._make_request("differential.query", params)
+
+    def query_diffs(
+        self,
+        ids: List[int] = None,
+        phids: List[str] = None,
+        revision_ids: List[int] = None,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Query differential diffs which match certain criteria (legacy method).
+
+        Args:
+            ids: List of diff IDs
+            phids: List of diff PHIDs
+            revision_ids: List of revision IDs
+            **kwargs: Additional query parameters
+
+        Returns:
+            Query results
+        """
+        params = {}
+
+        if ids:
+            params["ids"] = ids
+        if phids:
+            params["phids"] = phids
+        if revision_ids:
+            params["revisionIDs"] = revision_ids
+
+        params.update(kwargs)
+        return self._make_request("differential.querydiffs", params)
+
+    def update_revision(
+        self, revision_id: int, diff_id: int = None, message: str = None, **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Update a Differential revision (legacy method).
+
+        Args:
+            revision_id: Revision ID to update
+            diff_id: New diff ID
+            message: Update message
+            **kwargs: Additional update parameters
+
+        Returns:
+            Update result
+        """
+        params = {"id": revision_id}
+
+        if diff_id:
+            params["diffid"] = diff_id
+        if message:
+            params["message"] = message
+
+        params.update(kwargs)
+        return self._make_request("differential.updaterevision", params)
+
+    def create_revision(
+        self,
+        diff_id: int,
+        title: str,
+        summary: str = None,
+        test_plan: str = None,
+        reviewers: List[str] = None,
+        cc: List[str] = None,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Create a new Differential revision (legacy method).
+
+        Args:
+            diff_id: Diff ID
+            title: Revision title
+            summary: Revision summary
+            test_plan: Test plan
+            reviewers: List of reviewer PHIDs
+            cc: List of CC PHIDs
+            **kwargs: Additional creation parameters
+
+        Returns:
+            Created revision data
+        """
+        params = {"diffid": diff_id, "title": title}
+
+        if summary:
+            params["summary"] = summary
+        if test_plan:
+            params["testPlan"] = test_plan
+        if reviewers:
+            params["reviewerPHIDs"] = reviewers
+        if cc:
+            params["ccPHIDs"] = cc
+
+        params.update(kwargs)
+        return self._make_request("differential.createrevision", params)
