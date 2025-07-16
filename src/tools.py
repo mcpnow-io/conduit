@@ -622,17 +622,56 @@ def register_tools(  # noqa: C901
         """
         client = get_client_func()
 
-        # Try to find the repository by searching
-        result = client.diffusion.search_repositories(
-            constraints=(
-                {"callsigns": [repository_identifier]}
-                if repository_identifier.isupper()
-                else {"names": [repository_identifier]}
-            ),
-            limit=1,
-        )
+        # Try different search strategies based on identifier format
+        result = None
 
-        if result.get("data"):
+        # 1. If it looks like a PHID, search by PHID
+        if repository_identifier.startswith("PHID-REPO-"):
+            result = client.diffusion.search_repositories(
+                constraints={"phids": [repository_identifier]},
+                limit=1,
+            )
+
+        # 2. If it's numeric, search by ID
+        elif repository_identifier.isdigit():
+            result = client.diffusion.search_repositories(
+                constraints={"ids": [int(repository_identifier)]},
+                limit=1,
+            )
+
+        # 3. If it's all uppercase, likely a callsign
+        elif repository_identifier.isupper() and repository_identifier.isalpha():
+            result = client.diffusion.search_repositories(
+                constraints={"callsigns": [repository_identifier]},
+                limit=1,
+            )
+
+        # 4. Try searching by short name
+        if not result or not result.get("data"):
+            try:
+                result = client.diffusion.search_repositories(
+                    constraints={"shortNames": [repository_identifier]},
+                    limit=1,
+                )
+            except Exception:
+                # shortNames constraint might fail, continue to next strategy
+                pass
+
+        # 5. If still no results, do a general search and filter by name
+        if not result or not result.get("data"):
+            # Search all repositories and find by name match
+            all_repos = client.diffusion.search_repositories(limit=100)
+            for repo in all_repos.get("data", []):
+                fields = repo.get("fields", {})
+                if (
+                    fields.get("name") == repository_identifier
+                    or fields.get("shortName") == repository_identifier
+                    or fields.get("callsign") == repository_identifier
+                ):
+                    result = {"data": [repo]}
+                    break
+
+        if result and result.get("data"):
             return {"success": True, "repository": result["data"][0]}
         else:
             return {
@@ -887,13 +926,13 @@ def register_tools(  # noqa: C901
 
         constraints = {}
         if author:
-            constraints["authors"] = [author]
+            constraints["authorPHIDs"] = [author]
         if reviewer:
-            constraints["reviewers"] = [reviewer]
+            constraints["reviewerPHIDs"] = [reviewer]
         if status:
             constraints["statuses"] = [status]
         if repository:
-            constraints["repositories"] = [repository]
+            constraints["repositoryPHIDs"] = [repository]
         if title_contains:
             constraints["query"] = title_contains
 
@@ -1059,10 +1098,22 @@ def register_tools(  # noqa: C901
 
         constraints = {}
         if revision_id:
+            # Convert revision ID to PHID for search
             if revision_id.startswith("D"):
                 revision_id = revision_id[1:]
-            # Use the correct constraint name for revision IDs
-            constraints["revisions"] = [int(revision_id)]
+
+            # First, search for the revision to get its PHID
+            revision_search = client.differential.search_revisions(
+                constraints={"ids": [int(revision_id)]}, limit=1
+            )
+
+            if revision_search.get("data"):
+                revision_phid = revision_search["data"][0]["phid"]
+                constraints["revisionPHIDs"] = [revision_phid]
+            else:
+                # Return empty result if revision not found
+                return {"success": True, "diffs": {"data": [], "cursor": {}}}
+
         if repository:
             constraints["repositories"] = [repository]
         if author:

@@ -5,25 +5,55 @@ from .base import BasePhabricatorClient
 
 class DifferentialClient(BasePhabricatorClient):
     def search_revisions(
-        self, constraints: Dict[str, Any] = None, limit: int = 100
+        self,
+        query_key: str = None,
+        constraints: Dict[str, Any] = None,
+        attachments: Dict[str, bool] = None,
+        order: str = None,
+        before: str = None,
+        after: str = None,
+        limit: int = 100,
     ) -> Dict[str, Any]:
         """
-        Search for Differential revisions.
+        Search for Differential revisions using the modern search API.
 
         Args:
-            constraints: Search constraints
-            limit: Maximum number of results to return
+            query_key: Builtin query key (e.g., "active", "all", "authored", "active-drafts", etc.)
+            constraints: Search constraints (e.g., {'ids': [123], 'authorPHIDs': ['PHID-...'], 'statuses': ['accepted']})
+            attachments: Additional data to include in results
+            order: Result ordering (builtin key or custom column list)
+            before: Cursor for previous page
+            after: Cursor for next page
+            limit: Maximum number of results to return (default: 100)
 
         Returns:
-            Search results with revision data
+            Search results with revision data, cursor info, and attachments
         """
         params = {"limit": limit}
+
+        if query_key:
+            params["queryKey"] = query_key
 
         if constraints:
             flattened_constraints = dict(
                 self.flatten_params(constraints, "constraints")
             )
             params.update(flattened_constraints)
+
+        if attachments:
+            flattened_attachments = dict(
+                self.flatten_params(attachments, "attachments")
+            )
+            params.update(flattened_attachments)
+
+        if order:
+            params["order"] = order
+
+        if before:
+            params["before"] = before
+
+        if after:
+            params["after"] = after
 
         return self._make_request("differential.revision.search", params)
 
@@ -53,48 +83,108 @@ class DifferentialClient(BasePhabricatorClient):
         return self._make_request("differential.revision.edit", params)
 
     def search_diffs(
-        self, constraints: Dict[str, Any] = None, limit: int = 100
+        self,
+        query_key: str = None,
+        constraints: Dict[str, Any] = None,
+        attachments: Dict[str, bool] = None,
+        order: str = None,
+        before: str = None,
+        after: str = None,
+        limit: int = 100,
     ) -> Dict[str, Any]:
         """
-        Read information about diffs.
+        Search for Differential diffs using the modern search API.
 
         Args:
-            constraints: Search constraints
-            limit: Maximum number of results to return
+            query_key: Builtin query key ("all")
+            constraints: Search constraints (e.g., {'ids': [123], 'phids': ['PHID-...'], 'revisionPHIDs': ['PHID-...']})
+            attachments: Additional data to include in results (e.g., {'commits': True})
+            order: Result ordering ("newest", "oldest" or custom column list)
+            before: Cursor for previous page
+            after: Cursor for next page
+            limit: Maximum number of results to return (default: 100)
 
         Returns:
-            Diff information
+            Search results with diff data, cursor info, and attachments
         """
         params = {"limit": limit}
+
+        if query_key:
+            params["queryKey"] = query_key
 
         if constraints:
             flattened_constraints = dict(
                 self.flatten_params(constraints, "constraints")
             )
             params.update(flattened_constraints)
+
+        if attachments:
+            flattened_attachments = dict(
+                self.flatten_params(attachments, "attachments")
+            )
+            params.update(flattened_attachments)
+
+        if order:
+            params["order"] = order
+
+        if before:
+            params["before"] = before
+
+        if after:
+            params["after"] = after
 
         return self._make_request("differential.diff.search", params)
 
     def search_changesets(
-        self, constraints: Dict[str, Any] = None, limit: int = 100
+        self,
+        query_key: str = None,
+        constraints: Dict[str, Any] = None,
+        attachments: Dict[str, bool] = None,
+        order: str = None,
+        before: str = None,
+        after: str = None,
+        limit: int = 100,
     ) -> Dict[str, Any]:
         """
-        Read information about changesets.
+        Search for Differential changesets using the modern search API.
 
         Args:
-            constraints: Search constraints
-            limit: Maximum number of results to return
+            query_key: Builtin query key
+            constraints: Search constraints (e.g., {'diffPHIDs': ['PHID-...']})
+            attachments: Additional data to include in results
+            order: Result ordering (builtin key or custom column list)
+            before: Cursor for previous page
+            after: Cursor for next page
+            limit: Maximum number of results to return (default: 100)
 
         Returns:
-            Changeset information
+            Search results with changeset data, cursor info, and attachments
         """
         params = {"limit": limit}
+
+        if query_key:
+            params["queryKey"] = query_key
 
         if constraints:
             flattened_constraints = dict(
                 self.flatten_params(constraints, "constraints")
             )
             params.update(flattened_constraints)
+
+        if attachments:
+            flattened_attachments = dict(
+                self.flatten_params(attachments, "attachments")
+            )
+            params.update(flattened_attachments)
+
+        if order:
+            params["order"] = order
+
+        if before:
+            params["before"] = before
+
+        if after:
+            params["after"] = after
 
         return self._make_request("differential.changeset.search", params)
 
