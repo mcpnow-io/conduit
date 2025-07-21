@@ -36,6 +36,76 @@ class UserInfo(TypedDict):
     primaryEmail: str
 
 
+# Search-related types for user.search
+class UserSearchConstraints(TypedDict, total=False):
+    """Constraints for user.search API"""
+
+    ids: List[int]
+    phids: List[PHID]
+    usernames: List[str]
+    nameLike: str
+    isAdmin: bool
+    isDisabled: bool
+    isBot: bool
+    isMailingList: bool
+    needsApproval: bool
+    mfa: bool
+    createdStart: int  # epoch timestamp
+    createdEnd: int  # epoch timestamp
+    query: str  # fulltext search
+
+
+class UserSearchAttachments(TypedDict, total=False):
+    """Attachments for user.search API"""
+
+    availability: bool
+
+
+class UserSearchCursor(TypedDict, total=False):
+    """Cursor information for paging through search results"""
+
+    limit: int
+    after: Optional[str]
+    before: Optional[str]
+    order: Optional[str]
+
+
+class UserSearchFields(TypedDict, total=False):
+    """Fields returned in user search results"""
+
+    username: str
+    realName: str
+    roles: List[str]
+    dateCreated: int
+    dateModified: int
+    policy: dict  # map of capabilities to policies
+
+
+class UserSearchAttachmentData(TypedDict, total=False):
+    """Attachment data in user search results"""
+
+    availability: dict
+
+
+class UserSearchResult(TypedDict):
+    """Individual user result from search"""
+
+    id: int
+    type: str  # Usually "USER"
+    phid: PHID
+    fields: UserSearchFields
+    attachments: Optional[UserSearchAttachmentData]
+
+
+class UserSearchResults(TypedDict):
+    """Complete user search results structure"""
+
+    data: List[UserSearchResult]
+    cursor: UserSearchCursor
+    query: dict
+    maps: dict
+
+
 # Transaction types for maniphest.edit
 class ManiphestTaskTransactionBase(TypedDict):
     type: str
