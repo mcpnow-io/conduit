@@ -20,6 +20,8 @@ from src.client.types import (
     ManiphestTaskTransactionPriority,
     ManiphestTaskTransactionStatus,
     ManiphestTaskTransactionTitle,
+    UserSearchAttachments,
+    UserSearchConstraints,
 )
 from src.client.unified import PhabricatorClient
 
@@ -61,6 +63,100 @@ def register_tools(  # noqa: C901
         client = get_client_func()
         result = client.user.whoami()
         return {"success": True, "user": result}
+
+    @mcp.tool()
+    @handle_api_errors
+    def search_users(
+        query_key: str = "",
+        ids: List[int] = [],
+        phids: List[str] = [],
+        usernames: List[str] = [],
+        name_like: str = "",
+        is_admin: bool = None,
+        is_disabled: bool = None,
+        is_bot: bool = None,
+        is_mailing_list: bool = None,
+        needs_approval: bool = None,
+        mfa: bool = None,
+        created_start: int = None,
+        created_end: int = None,
+        fulltext_query: str = "",
+        order: str = "",
+        include_availability: bool = False,
+        limit: int = 100,
+    ) -> dict:
+        """
+        Search for users with advanced filtering capabilities.
+
+        Args:
+            query_key: Builtin query ("active", "admin", "all", "approval")
+            ids: List of specific user IDs to search for
+            phids: List of specific user PHIDs to search for
+            usernames: List of exact usernames to find
+            name_like: Find users whose usernames or real names contain this substring
+            is_admin: Pass true to find only administrators, or false to omit administrators
+            is_disabled: Pass true to find only disabled users, or false to omit disabled users
+            is_bot: Pass true to find only bots, or false to omit bots
+            is_mailing_list: Pass true to find only mailing lists, or false to omit mailing lists
+            needs_approval: Pass true to find only users awaiting approval, or false to omit these users
+            mfa: Pass true to find only users enrolled in MFA, or false to omit these users
+            created_start: Unix timestamp - find users created after this time
+            created_end: Unix timestamp - find users created before this time
+            fulltext_query: Full-text search query string
+            order: Result ordering ("newest", "oldest", "relevance")
+            include_availability: Include user availability information in results
+            limit: Maximum number of results to return (default: 100)
+
+        Returns:
+            Search results with user data and metadata
+        """
+        client = get_client_func()
+
+        # Build constraints
+        constraints: UserSearchConstraints = {}
+
+        if ids:
+            constraints["ids"] = ids
+        if phids:
+            constraints["phids"] = phids
+        if usernames:
+            constraints["usernames"] = usernames
+        if name_like:
+            constraints["nameLike"] = name_like
+        if is_admin is not None:
+            constraints["isAdmin"] = is_admin
+        if is_disabled is not None:
+            constraints["isDisabled"] = is_disabled
+        if is_bot is not None:
+            constraints["isBot"] = is_bot
+        if is_mailing_list is not None:
+            constraints["isMailingList"] = is_mailing_list
+        if needs_approval is not None:
+            constraints["needsApproval"] = needs_approval
+        if mfa is not None:
+            constraints["mfa"] = mfa
+        if created_start is not None:
+            constraints["createdStart"] = created_start
+        if created_end is not None:
+            constraints["createdEnd"] = created_end
+        if fulltext_query:
+            constraints["query"] = fulltext_query
+
+        # Build attachments
+        attachments: UserSearchAttachments = {}
+        if include_availability:
+            attachments["availability"] = True
+
+        # Call the search API
+        result = client.user.search(
+            query_key=query_key or None,
+            constraints=constraints if constraints else None,
+            attachments=attachments if attachments else None,
+            order=order or None,
+            limit=limit,
+        )
+
+        return {"success": True, "users": result["data"], "cursor": result["cursor"]}
 
     @mcp.tool()
     @handle_api_errors
