@@ -1,0 +1,9 @@
+{
+    "conduit-mcp-server": {
+        "template": "program",
+        "settings": {
+            "command": "python3 run.py"
+        },
+        "tag": "service_01"
+    }
+}
