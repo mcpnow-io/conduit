@@ -178,7 +178,7 @@ def register_tools(  # noqa: C901
         Get details of a specific Phabricator task
 
         Args:
-            task_id: The ID of the task to retrieve
+            task_id: The ID of the task to retrieve, e.g. 1234
 
         Returns:
             Task details
@@ -1155,7 +1155,7 @@ def register_tools(  # noqa: C901
         Get the raw content of a diff.
 
         Args:
-            diff_id: Diff ID or PHID
+            diff_id: Diff ID or PHID, you can use `search_diffds` with `D123` form id to get actual diff_id
 
         Returns:
             Raw diff content
