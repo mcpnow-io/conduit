@@ -23,6 +23,20 @@ Then run:
 uvx --from git+https://github.com/mcpnow-io/conduit conduit-mcp
 ```
 
+### From Source
+To install from source for development or contribution:
+
+```sh
+# Clone the repository
+git clone https://github.com/mcpnow-io/conduit.git
+cd conduit
+
+# Install in development mode with all dependencies
+pip install -e .[dev]
+```
+
+This will install the package in editable mode with all development dependencies.
+
 ### Docker
 We are still working on Docker support. We estimate it will be available soon.
 
@@ -30,7 +44,7 @@ We are still working on Docker support. We estimate it will be available soon.
 Conduit can run as an HTTP/SSE server for multi-user scenarios. This mode allows multiple clients to connect simultaneously, each using their own authentication tokens.
 
 ```sh
-conduit-mcp --host 127.0.0.1 --port 8000 # or using python3 run.py if not installed this repo as package
+conduit-mcp --host 127.0.0.1 --port 8000
 ```
 When running as an HTTP server, authentication tokens are provided via HTTP headers instead of environment variables.
 
@@ -64,9 +78,27 @@ There are many ways in which you can participate in this project, for example:
 * Review the [wiki](https://github.com/mcpnow-io/conduit/wiki) and make pull requests for anything from typos to additional and new content
 
 If you are interested in fixing issues and contributing directly to the code base, please see the document [How to Contribute](https://github.com/mcpnow-io/conduit/wiki/How-to-Contribute)：
-* [First-Time Setup](https://github.com/mcpnow-io/conduit/wiki/How-to-Contribute#first-time-setup)
+* [First-Time Setup](https://github.com/mcpnow-io/conduit/wiki/How-to-Contribute#first-time-setup) - Now uses modern `pyproject.toml` for dependency management
 * [Submitting a Pull Request](https://github.com/mcpnow-io/conduit/wiki/How-to-Contribute#submitting-a-pull-request)
 * [Running Unittests](https://github.com/mcpnow-io/conduit/wiki/How-to-Contribute#running-unittests)
+
+### Development Setup
+This project uses modern Python packaging with `pyproject.toml` for dependency management and build configuration. To set up for development:
+
+1. Install the package in editable mode with development dependencies:
+   ```sh
+   pip install -e .[dev]
+   ```
+
+2. Run pre-commit hooks to ensure code quality:
+   ```sh
+   pre-commit run -a
+   ```
+
+3. Run tests with coverage:
+   ```sh
+   coverage run -m pytest -s
+   ```
 
 ## License
 Copyright (c) 2025 mpcnow.io. All rights reserved.

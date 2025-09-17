@@ -392,7 +392,7 @@ class DifferentialClient(BasePhabricatorClient):
         order: str = None,
         limit: int = None,
         offset: int = None,
-        **kwargs
+        **kwargs,
     ) -> Dict[str, Any]:
         """
         Query Differential revisions which match certain criteria (legacy method).
@@ -444,7 +444,7 @@ class DifferentialClient(BasePhabricatorClient):
         ids: List[int] = None,
         phids: List[str] = None,
         revision_ids: List[int] = None,
-        **kwargs
+        **kwargs,
     ) -> Dict[str, Any]:
         """
         Query differential diffs which match certain criteria (legacy method).
@@ -503,7 +503,7 @@ class DifferentialClient(BasePhabricatorClient):
         test_plan: str = None,
         reviewers: List[str] = None,
         cc: List[str] = None,
-        **kwargs
+        **kwargs,
     ) -> Dict[str, Any]:
         """
         Create a new Differential revision (legacy method).

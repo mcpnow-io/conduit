@@ -27,5 +27,3 @@ repos:
         files: .*.py$
       - id: trailing-whitespace
         files: .*.py$
-      - id: file-contents-sorter
-        files: ^(requirements.*.txt)$

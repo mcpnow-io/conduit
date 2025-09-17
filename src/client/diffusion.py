@@ -60,7 +60,7 @@ class DiffusionClient(BasePhabricatorClient):
         callsign: str = None,
         short_name: str = None,
         description: str = None,
-        **kwargs
+        **kwargs,
     ) -> Dict[str, Any]:
         """
         Create a new repository.
@@ -193,7 +193,7 @@ class DiffusionClient(BasePhabricatorClient):
         path: str = None,
         commit: str = None,
         limit: int = 100,
-        **kwargs
+        **kwargs,
     ) -> Dict[str, Any]:
         """
         Returns history information for a repository at a specific commit and path.
