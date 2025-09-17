@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "conduit-mcp"
+version = "0.1.5"
+description = "The MCP Server for Phabricator and Phorge"
+readme = "README.md"
+requires-python = ">=3.8"
+authors = [
+    {name = "mcpnow.io", email = "support@mcpnow.io"}
+]
+license = {text = "MIT"}
+keywords = ["mcp", "phabricator", "phorge", "api", "client", "server", "automation"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Topic :: Software Development :: Bug Tracking",
+]
+dependencies = [
+    "fastmcp",
+    "httpx[socks]",
+    "python-dotenv",
+]
+
+[project.urls]
+Homepage = "https://github.com/mcpnow-io/conduit"
+Bug-Reports = "https://github.com/mcpnow-io/conduit/issues"
+Source = "https://github.com/mcpnow-io/conduit"
+Wiki = "https://github.com/mcpnow-io/conduit/wiki"
+
+[project.optional-dependencies]
+dev = [
+    "flake8",
+    "pre-commit",
+    "pytest",
+    "pytest-cov",
+    "setuptools",
+]
+test = [
+    "flake8",
+    "pre-commit",
+    "pytest",
+    "pytest-cov",
+    "setuptools",
+]
+
+[project.scripts]
+conduit-mcp = "src.conduit:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["*"]
+exclude = ["tests*"]
