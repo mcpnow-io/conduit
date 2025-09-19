@@ -6,8 +6,9 @@ from src.client.types import (
     UserSearchConstraints,
     UserSearchResults,
 )
+from src.client.base import BasePhabricatorClient
 
-from .base import BasePhabricatorClient
+from src.utils import build_search_params
 
 
 class UserClient(BasePhabricatorClient):
@@ -45,32 +46,13 @@ class UserClient(BasePhabricatorClient):
         Returns:
             Search results with user data, cursor info, and attachments
         """
-        params = {"limit": limit}
-
-        if query_key:
-            params["queryKey"] = query_key
-
-        if constraints:
-            # Use flatten_params like maniphest does
-            flattened_constraints = dict(
-                self.flatten_params(constraints, "constraints")
-            )
-            params.update(flattened_constraints)
-
-        if attachments:
-            # Use flatten_params for attachments too
-            flattened_attachments = dict(
-                self.flatten_params(attachments, "attachments")
-            )
-            params.update(flattened_attachments)
-
-        if order:
-            params["order"] = order
-
-        if before:
-            params["before"] = before
-
-        if after:
-            params["after"] = after
-
+        params = build_search_params(
+            query_key=query_key,
+            constraints=constraints,
+            attachments=attachments,
+            order=order,
+            before=before,
+            after=after,
+            limit=limit,
+        )
         return self._make_request("user.search", params)

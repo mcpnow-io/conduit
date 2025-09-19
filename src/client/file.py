@@ -1,6 +1,7 @@
 from typing import Any, Dict
 
-from .base import BasePhabricatorClient, PhabricatorAPIError
+from src.client.base import BasePhabricatorClient, PhabricatorAPIError
+from src.utils import build_search_params
 
 
 class FileClient(BasePhabricatorClient):
@@ -17,10 +18,10 @@ class FileClient(BasePhabricatorClient):
         Returns:
             Search results with file data
         """
-        params = {"limit": limit}
-        if constraints:
-            params["constraints"] = constraints
-
+        params = build_search_params(
+            constraints=constraints,
+            limit=limit,
+        )
         return self._make_request("file.search", params)
 
     def get_file_info(self, file_phid: str) -> Dict[str, Any]:

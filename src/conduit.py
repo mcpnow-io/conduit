@@ -5,7 +5,7 @@ from fastmcp import FastMCP
 from fastmcp.server.dependencies import get_http_headers
 
 from src.client import PhabricatorClient
-from src.tools import register_tools
+from src.main_tools import register_tools
 
 
 class PhabricatorConfig(object):
@@ -41,56 +41,74 @@ class PhabricatorConfig(object):
         return {"api.token": self.token}
 
 
-mcp = FastMCP("Conduit")
+class ConduitApp:
+    """Main application class for Conduit MCP Server."""
 
-config = None
-client = None
-use_sse = None
+    def __init__(self, config: PhabricatorConfig, use_sse: bool = False):
+        self.config = config
+        self.use_sse = use_sse
+        self.mcp = FastMCP("Conduit")
+        self._client = None
 
+    def get_client(self):
+        """Get or create a Phabricator client instance."""
+        if self._client is not None:
+            return self._client
 
-def get_config():
-    global config
-    if config is None:
-        config = PhabricatorConfig(require_token=False)
-    return config
+        headers = get_http_headers()
+        http_token = headers.get("x-phabricator-token")
 
+        if http_token:
+            if len(http_token) != 32:
+                raise ValueError(
+                    "PHABRICATOR_TOKEN from HTTP header must be exactly 32 characters long"
+                )
 
-def get_client():
-    global client
-
-    headers = get_http_headers()
-    http_token = headers.get("x-phabricator-token")
-
-    config = get_config()
-
-    if http_token:
-        if len(http_token) != 32:
-            raise ValueError(
-                "PHABRICATOR_TOKEN from HTTP header must be exactly 32 characters long"
+            self._client = PhabricatorClient(
+                self.config.url,
+                http_token,
+                proxy=self.config.proxy,
+                disable_cert_verify=self.config.disable_cert_verify,
             )
-
-        return PhabricatorClient(
-            config.url,
-            http_token,
-            proxy=config.proxy,
-            disable_cert_verify=config.disable_cert_verify,
-        )
-    elif use_sse:
-        raise ValueError("Must provide X-PHABRICATOR-TOKEN.")
-    elif not use_sse:
-        if client is None:
-            if not config.token:
+        elif self.use_sse:
+            raise ValueError("Must provide X-PHABRICATOR-TOKEN.")
+        else:
+            if not self.config.token:
                 raise ValueError("PHABRICATOR_TOKEN is required for stdio mode")
-            client = PhabricatorClient(
-                config.url,
-                config.token,
-                proxy=config.proxy,
-                disable_cert_verify=config.disable_cert_verify,
+            self._client = PhabricatorClient(
+                self.config.url,
+                self.config.token,
+                proxy=self.config.proxy,
+                disable_cert_verify=self.config.disable_cert_verify,
             )
-        return client
+        return self._client
+
+    def register_tools(self):
+        """Register all MCP tools."""
+        register_tools(self.mcp, self.get_client)
+
+    def run_sse_mode(self, host: str, port: int):
+        """Run the application in SSE mode."""
+        print(f"Starting in HTTP/SSE mode on {host}:{port}")
+        self.mcp.run(
+            transport="sse",
+            host=host,
+            port=port,
+            path="/sse",
+        )
+
+    def run_stdio_mode(self):
+        """Run the application in stdio mode."""
+        print("Starting in stdio mode")
+        self.mcp.run(transport="stdio")
+
+
+# Global app instance
+_app = None
 
 
 def print_server_info(config):
+    """Print server configuration information."""
     print("Starting Conduit MCP Server...")
     print(f"Phabricator URL: {config.url}")
     print(f"Token configured: {'Yes' if config.token else 'No'}")
@@ -103,30 +121,15 @@ def print_server_info(config):
 
 
 def should_use_sse_transport() -> bool:
+    """Check if SSE transport should be used based on command line arguments."""
     import sys
 
     sse_args = ["--host", "-H", "--port", "-p"]
     return any(arg in sys.argv for arg in sse_args)
 
 
-def run_sse_mode(args):
-    print(f"Starting in HTTP/SSE mode on {args.host}:{args.port}")
-    mcp.run(
-        transport="sse",
-        host=args.host,
-        port=args.port,
-        path="/sse",
-    )
-
-
-def run_stdio_mode():
-    print("Starting in stdio mode")
-    mcp.run(transport="stdio")
-
-
 def main():
-    global config, use_sse
-
+    """Main entry point for the Conduit MCP Server."""
     parser = argparse.ArgumentParser(
         description="Conduit MCP Server for Phabricator and Phorge"
     )
@@ -160,12 +163,31 @@ def main():
         config = PhabricatorConfig(require_token=True)
         print_server_info(config)
 
-    register_tools(mcp, get_client)
+    # Create and run the application
+    app = ConduitApp(config, use_sse)
+    app.register_tools()
 
     if use_sse:
-        run_sse_mode(args)
+        app.run_sse_mode(args.host, args.port)
     else:
-        run_stdio_mode()
+        app.run_stdio_mode()
+
+
+# Backward compatibility functions
+def get_config():
+    """Get configuration for backward compatibility."""
+    return PhabricatorConfig(require_token=False)
+
+
+def get_client():
+    """Get client for backward compatibility."""
+    config = get_config()
+    return PhabricatorClient(
+        config.url,
+        config.token or "dummy_token",
+        proxy=config.proxy,
+        disable_cert_verify=config.disable_cert_verify,
+    )
 
 
 if __name__ == "__main__":

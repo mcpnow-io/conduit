@@ -1,6 +1,11 @@
 from typing import Any, Dict, List
 
-from .base import BasePhabricatorClient
+from src.client.base import BasePhabricatorClient
+from src.utils import (
+    build_search_params,
+    build_transaction_params,
+    flatten_params,
+)
 
 
 class DifferentialClient(BasePhabricatorClient):
@@ -29,32 +34,15 @@ class DifferentialClient(BasePhabricatorClient):
         Returns:
             Search results with revision data, cursor info, and attachments
         """
-        params = {"limit": limit}
-
-        if query_key:
-            params["queryKey"] = query_key
-
-        if constraints:
-            flattened_constraints = dict(
-                self.flatten_params(constraints, "constraints")
-            )
-            params.update(flattened_constraints)
-
-        if attachments:
-            flattened_attachments = dict(
-                self.flatten_params(attachments, "attachments")
-            )
-            params.update(flattened_attachments)
-
-        if order:
-            params["order"] = order
-
-        if before:
-            params["before"] = before
-
-        if after:
-            params["after"] = after
-
+        params = build_search_params(
+            query_key=query_key,
+            constraints=constraints,
+            attachments=attachments,
+            order=order,
+            before=before,
+            after=after,
+            limit=limit,
+        )
         return self._make_request("differential.revision.search", params)
 
     def edit_revision(
@@ -70,16 +58,10 @@ class DifferentialClient(BasePhabricatorClient):
         Returns:
             Revision data
         """
-        params = {}
-        if object_identifier:
-            params["objectIdentifier"] = object_identifier
-
-        if transactions:
-            params = {
-                **{k: v for k, v in self.flatten_params(transactions, "transactions")},
-                **params,
-            }
-
+        params = build_transaction_params(
+            transactions=transactions,
+            object_identifier=object_identifier,
+        )
         return self._make_request("differential.revision.edit", params)
 
     def search_diffs(
@@ -107,32 +89,15 @@ class DifferentialClient(BasePhabricatorClient):
         Returns:
             Search results with diff data, cursor info, and attachments
         """
-        params = {"limit": limit}
-
-        if query_key:
-            params["queryKey"] = query_key
-
-        if constraints:
-            flattened_constraints = dict(
-                self.flatten_params(constraints, "constraints")
-            )
-            params.update(flattened_constraints)
-
-        if attachments:
-            flattened_attachments = dict(
-                self.flatten_params(attachments, "attachments")
-            )
-            params.update(flattened_attachments)
-
-        if order:
-            params["order"] = order
-
-        if before:
-            params["before"] = before
-
-        if after:
-            params["after"] = after
-
+        params = build_search_params(
+            query_key=query_key,
+            constraints=constraints,
+            attachments=attachments,
+            order=order,
+            before=before,
+            after=after,
+            limit=limit,
+        )
         return self._make_request("differential.diff.search", params)
 
     def search_changesets(
@@ -160,32 +125,15 @@ class DifferentialClient(BasePhabricatorClient):
         Returns:
             Search results with changeset data, cursor info, and attachments
         """
-        params = {"limit": limit}
-
-        if query_key:
-            params["queryKey"] = query_key
-
-        if constraints:
-            flattened_constraints = dict(
-                self.flatten_params(constraints, "constraints")
-            )
-            params.update(flattened_constraints)
-
-        if attachments:
-            flattened_attachments = dict(
-                self.flatten_params(attachments, "attachments")
-            )
-            params.update(flattened_attachments)
-
-        if order:
-            params["order"] = order
-
-        if before:
-            params["before"] = before
-
-        if after:
-            params["after"] = after
-
+        params = build_search_params(
+            query_key=query_key,
+            constraints=constraints,
+            attachments=attachments,
+            order=order,
+            before=before,
+            after=after,
+            limit=limit,
+        )
         return self._make_request("differential.changeset.search", params)
 
     def create_diff(
@@ -217,7 +165,7 @@ class DifferentialClient(BasePhabricatorClient):
 
         # Flatten changes properly
         if changes:
-            flattened_changes = dict(self.flatten_params(changes, "changes"))
+            flattened_changes = dict(flatten_params(changes, "changes"))
             params.update(flattened_changes)
 
         return self._make_request("differential.creatediff", params)

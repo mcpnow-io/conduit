@@ -1,9 +1,9 @@
-from .base import PhabricatorAPIError
-from .differential import DifferentialClient
-from .diffusion import DiffusionClient
-from .file import FileClient
-from .maniphest import ManiphestClient
-from .misc import (
+from src.client.base import PhabricatorAPIError
+from src.client.differential import DifferentialClient
+from src.client.diffusion import DiffusionClient
+from src.client.file import FileClient
+from src.client.maniphest import ManiphestClient
+from src.client.misc import (
     ConduitClient,
     FlagClient,
     HarbormasterClient,
@@ -13,9 +13,9 @@ from .misc import (
     PhrictionClient,
     RemarkupClient,
 )
-from .project import ProjectClient
-from .unified import PhabricatorClient
-from .user import UserClient
+from src.client.project import ProjectClient
+from src.client.unified import PhabricatorClient
+from src.client.user import UserClient
 
 __all__ = [
     "PhabricatorClient",

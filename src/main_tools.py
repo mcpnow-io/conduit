@@ -1,16 +1,8 @@
-"""
-MCP tools for Phabricator API operations.
-
-This module contains all the MCP tool definitions for interacting with
-Phabricator/Phorge through the Conduit API.
-"""
-
 from functools import wraps
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, List, Literal, Optional
 
 from fastmcp import FastMCP
 
-from src.client import PhabricatorAPIError
 from src.client.types import (
     ManiphestSearchAttachments,
     ManiphestSearchConstraints,
@@ -26,47 +18,168 @@ from src.client.types import (
 from src.client.unified import PhabricatorClient
 
 
-def handle_api_errors(func: Callable) -> Callable:
+from src.tools.handlers import handle_api_errors
+
+
+# Pagination and Token Optimization Functions
+
+
+def _apply_smart_pagination(data: List[Any], limit: int = None) -> dict:
+    """
+    Apply smart pagination to data with token optimization.
+
+    Args:
+        data: List of data items
+        limit: Maximum number of items to return (optional)
+
+    Returns:
+        Paginated response with metadata
+    """
+    if limit is None:
+        limit = 100  # Default limit
+
+    # Apply limit if data is larger than limit
+    if len(data) > limit:
+        paginated_data = data[:limit]
+        has_more = True
+        total_count = len(data)
+        suggestion = f"Use pagination to retrieve remaining {total_count - limit} items"
+    else:
+        paginated_data = data
+        has_more = False
+        total_count = len(data)
+        suggestion = None
+
+    return {
+        "data": paginated_data,
+        "pagination": {
+            "total": total_count,
+            "returned": len(paginated_data),
+            "has_more": has_more,
+        },
+        "suggestion": suggestion,
+    }
+
+
+def optimize_token_usage(func: Callable) -> Callable:
+    """
+    Decorator to optimize token usage by applying smart limits and truncation.
+    """
+
     @wraps(func)
-    def wrapper(*args, **kwargs) -> Dict[str, Any]:
-        try:
-            result = func(*args, **kwargs)
-            # If the function returns a dict with 'success' key, return as-is
-            # Otherwise, wrap the result in a success response
-            if isinstance(result, dict) and "success" in result:
-                return result
-            return {"success": True, "result": result}
-        except PhabricatorAPIError as e:
-            return {
-                "success": False,
-                "error": str(e),
-                "error_code": getattr(e, "error_code", None),
-            }
-        except Exception as e:
-            return {"success": False, "error": f"Unexpected error: {str(e)}"}
+    def wrapper(*args, **kwargs):
+        result = func(*args, **kwargs)
+
+        # Apply token optimization to search results
+        if isinstance(result, dict) and "data" in result:
+            # Check if this is a search result that needs optimization
+            data = result["data"]
+            if isinstance(data, list) and len(data) > 50:
+                # Apply smart pagination
+                optimized_result = _apply_smart_pagination(
+                    data, kwargs.get("limit", 100)
+                )
+                result.update(optimized_result)
+
+        return result
 
     return wrapper
 
 
+def _truncate_text_response(text: str, max_length: int = 2000) -> dict:
+    """
+    Truncate long text responses with helpful guidance.
+
+    Args:
+        text: The text to truncate
+        max_length: Maximum allowed length
+
+    Returns:
+        Truncated response with guidance
+    """
+    if len(text) <= max_length:
+        return {"content": text, "truncated": False}
+
+    truncated_text = text[:max_length]
+    remaining_length = len(text) - max_length
+
+    return {
+        "content": truncated_text,
+        "truncated": True,
+        "original_length": len(text),
+        "remaining_length": remaining_length,
+        "suggestion": f"Content was truncated. {remaining_length} characters remaining. Use specific search parameters to reduce results.",
+    }
+
+
+def _add_pagination_metadata(result: dict, cursor: dict = None) -> dict:
+    """
+    Add pagination metadata to search results.
+
+    Args:
+        result: Original search result
+        cursor: Pagination cursor from API
+
+    Returns:
+        Result with enhanced pagination metadata
+    """
+    if cursor:
+        result["pagination"] = {
+            "cursor": cursor,
+            "has_more": cursor.get("after") is not None,
+            "limit": cursor.get("limit", 100),
+        }
+
+    return result
+
+
 def register_tools(  # noqa: C901
-    mcp: FastMCP, get_client_func: Callable[[], PhabricatorClient]
+    mcp: FastMCP,
+    get_client_func: Callable[[], PhabricatorClient],
+    enable_type_safety: bool = False,
 ) -> None:
+    """
+    Register all MCP tools with the FastMCP instance.
+
+    Args:
+        mcp: FastMCP instance to register tools with
+        get_client_func: Function to get Phabricator client instance
+        enable_type_safety: Whether to enable type-safe client wrapper
+    """
+
     @mcp.tool()
     @handle_api_errors
-    def whoami() -> dict:
+    def pha_user_whoami(enable_type_safety: bool = False) -> dict:
         """
         Get the current user's information.
+
+        Args:
+            enable_type_safety: Enable runtime type validation
 
         Returns:
             User information
         """
         client = get_client_func()
-        result = client.user.whoami()
+
+        # Apply type safety if requested
+        if enable_type_safety:
+            try:
+                from src.utils.validation import RuntimeValidationClient
+
+                type_safe_client = RuntimeValidationClient(client)
+                result = type_safe_client.get_user_info(client.user.whoami()["phid"])
+            except ImportError:
+                # Fallback to regular client if type_safe module not available
+                result = client.user.whoami()
+        else:
+            result = client.user.whoami()
+
         return {"success": True, "user": result}
 
     @mcp.tool()
     @handle_api_errors
-    def search_users(
+    @optimize_token_usage
+    def pha_user_search(
         query_key: str = "",
         ids: List[int] = [],
         phids: List[str] = [],
@@ -84,9 +197,11 @@ def register_tools(  # noqa: C901
         order: str = "",
         include_availability: bool = False,
         limit: int = 100,
+        max_tokens: int = 5000,
+        enable_type_safety: bool = False,
     ) -> dict:
         """
-        Search for users with advanced filtering capabilities.
+        Search for users with advanced filtering capabilities and token optimization.
 
         Args:
             query_key: Builtin query ("active", "admin", "all", "approval")
@@ -105,10 +220,11 @@ def register_tools(  # noqa: C901
             fulltext_query: Full-text search query string
             order: Result ordering ("newest", "oldest", "relevance")
             include_availability: Include user availability information in results
-            limit: Maximum number of results to return (default: 100)
+            limit: Maximum number of results to return (default: 100, max: 1000)
+            max_tokens: Maximum token budget for response (default: 5000)
 
         Returns:
-            Search results with user data and metadata
+            Search results with user data, pagination metadata, and token optimization info
         """
         client = get_client_func()
 
@@ -147,20 +263,87 @@ def register_tools(  # noqa: C901
         if include_availability:
             attachments["availability"] = True
 
-        # Call the search API
-        result = client.user.search(
-            query_key=query_key or None,
-            constraints=constraints if constraints else None,
-            attachments=attachments if attachments else None,
-            order=order or None,
-            limit=limit,
-        )
+        # Apply type safety if requested
+        if enable_type_safety:
+            try:
+                from src.utils.validation import RuntimeValidationClient
+
+                type_safe_client = RuntimeValidationClient(client)
+
+                # Build constraints for type-safe client
+                type_safe_constraints = {}
+                if ids:
+                    type_safe_constraints["ids"] = ids
+                if phids:
+                    type_safe_constraints["phids"] = phids
+                if usernames:
+                    type_safe_constraints["usernames"] = usernames
+                if name_like:
+                    type_safe_constraints["nameLike"] = name_like
+                if is_admin is not None:
+                    type_safe_constraints["isAdmin"] = is_admin
+                if is_disabled is not None:
+                    type_safe_constraints["isDisabled"] = is_disabled
+                if is_bot is not None:
+                    type_safe_constraints["isBot"] = is_bot
+                if is_mailing_list is not None:
+                    type_safe_constraints["isMailingList"] = is_mailing_list
+                if needs_approval is not None:
+                    type_safe_constraints["needsApproval"] = needs_approval
+                if mfa is not None:
+                    type_safe_constraints["mfa"] = mfa
+                if created_start is not None:
+                    type_safe_constraints["createdStart"] = created_start
+                if created_end is not None:
+                    type_safe_constraints["createdEnd"] = created_end
+                if fulltext_query:
+                    type_safe_constraints["query"] = fulltext_query
+
+                result = type_safe_client.search_users(
+                    constraints=(
+                        type_safe_constraints if type_safe_constraints else None
+                    ),
+                    limit=limit,
+                )
+            except ImportError:
+                # Fallback to regular client if type_safe module not available
+                result = client.user.search(
+                    query_key=query_key or None,
+                    constraints=constraints if constraints else None,
+                    attachments=attachments if attachments else None,
+                    order=order or None,
+                    limit=limit,
+                )
+        else:
+            # Call the search API
+            result = client.user.search(
+                query_key=query_key or None,
+                constraints=constraints if constraints else None,
+                attachments=attachments if attachments else None,
+                order=order or None,
+                limit=limit,
+            )
+
+        # Apply token optimization
+        if max_tokens and result.get("data"):
+            data = result["data"]
+            if len(data) > 20:  # Further reduce limit for token optimization
+                result["data"] = data[:20]
+                result["token_optimization"] = {
+                    "applied": True,
+                    "original_count": len(data),
+                    "returned_count": 20,
+                    "reason": "Token budget optimization",
+                }
+
+        # Add pagination metadata
+        result = _add_pagination_metadata(result, result.get("cursor"))
 
         return {"success": True, "users": result["data"], "cursor": result["cursor"]}
 
     @mcp.tool()
     @handle_api_errors
-    def create_phabricator_task(
+    def pha_task_create(
         title: str, description: str = "", owner_phid: str = ""
     ) -> dict:
         client = get_client_func()
@@ -173,7 +356,7 @@ def register_tools(  # noqa: C901
 
     @mcp.tool()
     @handle_api_errors
-    def get_phabricator_task(task_id: int) -> dict:
+    def pha_task_get(task_id: int) -> dict:
         """
         Get details of a specific Phabricator task
 
@@ -189,65 +372,7 @@ def register_tools(  # noqa: C901
 
     @mcp.tool()
     @handle_api_errors
-    def phabricator_task_set_subtask(task_id: str, subtask_ids: str) -> dict:
-        """
-        Set a subtask to a Phabricator task
-
-        Args:
-            task_id: The ID, PHID of the parent task
-            subtask_id: The ID, PHID of the subtask to set, commas separated
-
-        Returns:
-            Success status
-        """
-        client = get_client_func()
-        client.maniphest.edit_task(
-            object_identifier=task_id,
-            transactions=[
-                {
-                    "type": "subtasks.set",
-                    "value": [
-                        subtask.strip()
-                        for subtask in subtask_ids.split(",")
-                        if subtask.strip()
-                    ],
-                }
-            ],
-        )
-        return {"success": True}
-
-    @mcp.tool()
-    @handle_api_errors
-    def phabricator_task_set_parent(task_id: str, parent_ids: str) -> dict:
-        """
-        Set a parent task to a Phabricator task
-
-        Args:
-            task_id: The ID, PHID of the child task
-            parent_ids: The ID, PHID of the parent task to set, commas separated
-
-        Returns:
-            Success status
-        """
-        client = get_client_func()
-        client.maniphest.edit_task(
-            object_identifier=task_id,
-            transactions=[
-                {
-                    "type": "parents.set",
-                    "value": [
-                        parent.strip()
-                        for parent in parent_ids.split(",")
-                        if parent.strip()
-                    ],
-                }
-            ],
-        )
-        return {"success": True}
-
-    @mcp.tool()
-    @handle_api_errors
-    def phabricator_task_update_metadata(
+    def pha_task_update(
         task_id: str,
         title: Optional[str] = None,
         description: Optional[str] = None,
@@ -304,7 +429,7 @@ def register_tools(  # noqa: C901
 
     @mcp.tool()
     @handle_api_errors
-    def phabricator_task_add_comment(task_id: str, comment: str) -> dict:
+    def pha_task_add_comment(task_id: str, comment: str) -> dict:
         """
         Add a comment to a Phabricator task.
 
@@ -329,10 +454,102 @@ def register_tools(  # noqa: C901
 
     @mcp.tool()
     @handle_api_errors
-    def search_phabricator_tasks(
+    def pha_task_get_personal(
+        task_type: Literal["assigned", "authored"] = "assigned",
+        include_projects: bool = True,
+        include_subscribers: bool = False,
+        limit: int = 50,
+    ) -> dict:
+        """
+        Get personal tasks assigned to or authored by the current user.
+
+        Args:
+            task_type: Type of tasks to retrieve ("assigned" or "authored")
+            include_projects: Include project information in results
+            include_subscribers: Include subscriber information in results
+            limit: Maximum number of results to return
+
+        Returns:
+            Personal tasks based on the specified type
+        """
+        client = get_client_func()
+
+        attachments: ManiphestSearchAttachments = {}
+        if include_projects:
+            attachments["projects"] = True
+        if include_subscribers:
+            attachments["subscribers"] = True
+
+        if task_type == "assigned":
+            result = client.maniphest.search_assigned_tasks(
+                attachments=attachments if attachments else None, limit=limit
+            )
+            return {"success": True, "assigned_tasks": result}
+        elif task_type == "authored":
+            result = client.maniphest.search_authored_tasks(
+                attachments=attachments if attachments else None, limit=limit
+            )
+            return {"success": True, "authored_tasks": result}
+        else:
+            return {
+                "success": False,
+                "error": "Invalid task_type. Use 'assigned' or 'authored'",
+            }
+
+    @mcp.tool()
+    @handle_api_errors
+    def pha_task_update_relationships(
+        task_id: str,
+        relationship_type: Literal["subtask", "parent"],
+        target_ids: List[str],
+    ) -> dict:
+        """
+        Update task relationships (subtasks or parents).
+
+        Args:
+            task_id: The ID, PHID of the task to update
+            relationship_type: Type of relationship ("subtask" or "parent")
+            target_ids: List of target task IDs/PHIDs, comma separated
+
+        Returns:
+            Success status
+        """
+        client = get_client_func()
+
+        # Parse comma-separated target IDs
+        target_list = [
+            target.strip() for target in target_ids.split(",") if target.strip()
+        ]
+
+        if not target_list:
+            return {"success": False, "error": "No valid target IDs provided"}
+
+        if relationship_type == "subtask":
+            transaction_type = "subtasks.set"
+        elif relationship_type == "parent":
+            transaction_type = "parents.set"
+        else:
+            return {
+                "success": False,
+                "error": "Invalid relationship_type. Use 'subtask' or 'parent'",
+            }
+
+        client.maniphest.edit_task(
+            object_identifier=task_id,
+            transactions=[
+                {
+                    "type": transaction_type,
+                    "value": target_list,
+                }
+            ],
+        )
+        return {"success": True}
+
+    @mcp.tool()
+    @handle_api_errors
+    @optimize_token_usage
+    def pha_task_search_advanced(
         query_key: str = "",
-        ids: List[int] = [],
-        phids: List[str] = [],
         assigned: List[str] = [],
         author_phids: List[str] = [],
         statuses: List[str] = [],
@@ -351,14 +568,16 @@ def register_tools(  # noqa: C901
         include_projects: bool = False,
         include_columns: bool = False,
         limit: int = 100,
+        preset: Literal[
+            "all", "assigned", "authored", "open", "high_priority", "recent"
+        ] = None,
+        max_tokens: int = 5000,
     ) -> dict:
         """
-        Search for Phabricator tasks with advanced filtering and search capabilities.
+        Advanced task search with filtering, preset options, and token optimization.
 
         Args:
             query_key: Builtin query ("assigned", "authored", "subscribed", "open", "all")
-            ids: List of specific task IDs to search for
-            phids: List of specific task PHIDs to search for
             assigned: List of usernames or PHIDs of assignees
             author_phids: List of PHIDs of task authors
             statuses: List of task statuses to filter by
@@ -376,20 +595,45 @@ def register_tools(  # noqa: C901
             include_subscribers: Include subscriber information in results
             include_projects: Include project information in results
             include_columns: Include workboard column information in results
-            limit: Maximum number of results to return (default: 100)
+            limit: Maximum number of results to return (default: 100, max: 1000)
+            preset: Preset search configurations for common use cases
+            max_tokens: Maximum token budget for response (default: 5000)
 
         Returns:
-            Search results with task data and metadata
+            Search results with task data, pagination metadata, and token optimization info
         """
         client = get_client_func()
+
+        # Handle preset configurations
+        if preset:
+            if preset == "assigned":
+                query_key = "assigned"
+                if not assigned:
+                    # Get current user for assigned tasks
+                    user_info = client.user.whoami()
+                    assigned = [user_info["phid"]]
+            elif preset == "authored":
+                query_key = "authored"
+                if not author_phids:
+                    # Get current user for authored tasks
+                    user_info = client.user.whoami()
+                    author_phids = [user_info["phid"]]
+            elif preset == "high_priority":
+                priorities = [90, 100]  # High and Unbreak Now priorities
+                order = "priority"
+            elif preset == "recent":
+                import time
+
+                modified_after = int(time.time()) - (7 * 24 * 60 * 60)  # Last 7 days
+                order = "updated"
+            elif preset == "open":
+                statuses = ["open"]
+            elif preset == "all":
+                query_key = "all"
 
         # Build constraints
         constraints: ManiphestSearchConstraints = {}
 
-        if ids:
-            constraints["ids"] = ids
-        if phids:
-            constraints["phids"] = phids
         if assigned:
             constraints["assigned"] = assigned
         if author_phids:
@@ -434,228 +678,47 @@ def register_tools(  # noqa: C901
             limit=limit,
         )
 
+        # Apply token optimization
+        if max_tokens and result.get("data"):
+            data = result["data"]
+            if len(data) > 15:  # Further reduce limit for token optimization
+                result["data"] = data[:15]
+                result["token_optimization"] = {
+                    "applied": True,
+                    "original_count": len(data),
+                    "returned_count": 15,
+                    "reason": "Token budget optimization",
+                }
+
+        # Add pagination metadata
+        result = _add_pagination_metadata(result, result.get("cursor"))
+
         return {"success": True, "results": result}
-
-    @mcp.tool()
-    @handle_api_errors
-    def get_my_assigned_tasks(
-        include_projects: bool = True,
-        include_subscribers: bool = False,
-        limit: int = 50,
-    ) -> dict:
-        """
-        Get tasks assigned to the current user.
-
-        Args:
-            include_projects: Include project information in results
-            include_subscribers: Include subscriber information in results
-            limit: Maximum number of results to return
-
-        Returns:
-            Tasks assigned to the current user
-        """
-        client = get_client_func()
-
-        attachments: ManiphestSearchAttachments = {}
-        if include_projects:
-            attachments["projects"] = True
-        if include_subscribers:
-            attachments["subscribers"] = True
-
-        result = client.maniphest.search_assigned_tasks(
-            attachments=attachments if attachments else None, limit=limit
-        )
-
-        return {"success": True, "assigned_tasks": result}
-
-    @mcp.tool()
-    @handle_api_errors
-    def get_my_authored_tasks(
-        include_projects: bool = True,
-        include_subscribers: bool = False,
-        limit: int = 50,
-    ) -> dict:
-        """
-        Get tasks authored by the current user.
-
-        Args:
-            include_projects: Include project information in results
-            include_subscribers: Include subscriber information in results
-            limit: Maximum number of results to return
-
-        Returns:
-            Tasks authored by the current user
-        """
-        client = get_client_func()
-
-        attachments: ManiphestSearchAttachments = {}
-        if include_projects:
-            attachments["projects"] = True
-        if include_subscribers:
-            attachments["subscribers"] = True
-
-        result = client.maniphest.search_authored_tasks(
-            attachments=attachments if attachments else None, limit=limit
-        )
-
-        return {"success": True, "authored_tasks": result}
-
-    @mcp.tool()
-    @handle_api_errors
-    def search_tasks_by_project(
-        project_names: List[str],
-        status_filter: str = "open",
-        include_subscribers: bool = False,
-        order: str = "priority",
-        limit: int = 50,
-    ) -> dict:
-        """
-        Search for tasks in specific projects.
-
-        Args:
-            project_names: List of project names or PHIDs to search in
-            status_filter: Status filter ("open", "resolved", "all")
-            include_subscribers: Include subscriber information in results
-            order: Result ordering ("priority", "updated", "newest", "oldest")
-            limit: Maximum number of results to return
-
-        Returns:
-            Tasks in the specified projects
-        """
-        client = get_client_func()
-
-        # Build constraints
-        constraints: ManiphestSearchConstraints = {"projects": project_names}
-
-        if status_filter != "all":
-            if status_filter == "open":
-                constraints["statuses"] = ["open"]
-            elif status_filter == "resolved":
-                constraints["statuses"] = ["resolved"]
-
-        # Build attachments
-        attachments: ManiphestSearchAttachments = {"projects": True}
-        if include_subscribers:
-            attachments["subscribers"] = True
-
-        result = client.maniphest.search_tasks(
-            constraints=constraints, attachments=attachments, order=order, limit=limit
-        )
-
-        return {"success": True, "project_tasks": result}
-
-    @mcp.tool()
-    @handle_api_errors
-    def search_high_priority_tasks(
-        assignee_filter: List[str] = [],
-        project_filter: List[str] = [],
-        include_projects: bool = True,
-        limit: int = 30,
-    ) -> dict:
-        """
-        Search for high priority tasks.
-
-        Args:
-            assignee_filter: List of usernames/PHIDs to filter by assignee (empty = all)
-            project_filter: List of project names/PHIDs to filter by project (empty = all)
-            include_projects: Include project information in results
-            limit: Maximum number of results to return
-
-        Returns:
-            High priority tasks
-        """
-        client = get_client_func()
-
-        # Build constraints for high priority tasks
-        constraints: ManiphestSearchConstraints = {
-            "priorities": [90, 100]  # High and Unbreak Now priorities
-        }
-
-        if assignee_filter:
-            constraints["assigned"] = assignee_filter
-        if project_filter:
-            constraints["projects"] = project_filter
-
-        # Build attachments
-        attachments: ManiphestSearchAttachments = {}
-        if include_projects:
-            attachments["projects"] = True
-
-        result = client.maniphest.search_tasks(
-            constraints=constraints,
-            attachments=attachments if attachments else None,
-            order="priority",
-            limit=limit,
-        )
-
-        return {"success": True, "high_priority_tasks": result}
-
-    @mcp.tool()
-    @handle_api_errors
-    def search_recently_updated_tasks(
-        days_back: int = 7,
-        include_projects: bool = True,
-        include_subscribers: bool = False,
-        limit: int = 50,
-    ) -> dict:
-        """
-        Search for tasks updated in the last N days.
-
-        Args:
-            days_back: Number of days to look back for updates
-            include_projects: Include project information in results
-            include_subscribers: Include subscriber information in results
-            limit: Maximum number of results to return
-
-        Returns:
-            Recently updated tasks
-        """
-        import time
-
-        client = get_client_func()
-
-        # Calculate timestamp for N days ago
-        days_back_timestamp = int(time.time()) - (days_back * 24 * 60 * 60)
-
-        constraints: ManiphestSearchConstraints = {"modifiedStart": days_back_timestamp}
-
-        # Build attachments
-        attachments: ManiphestSearchAttachments = {}
-        if include_projects:
-            attachments["projects"] = True
-        if include_subscribers:
-            attachments["subscribers"] = True
-
-        result = client.maniphest.search_tasks(
-            constraints=constraints,
-            attachments=attachments if attachments else None,
-            order="updated",
-            limit=limit,
-        )
-
-        return {"success": True, "recently_updated_tasks": result}
 
     # Diffusion (Repository) Tools
 
     @mcp.tool()
     @handle_api_errors
-    def search_repositories(
+    @optimize_token_usage
+    def pha_repository_search(
         name_contains: str = "",
         vcs_type: str = "",
         status: str = "",
         limit: int = 50,
+        max_tokens: int = 5000,
     ) -> dict:
         """
-        Search for repositories in Phabricator.
+        Search for repositories in Phabricator with token optimization.
 
         Args:
             name_contains: Filter repositories by name containing this string
             vcs_type: Filter by version control system ("git", "hg", "svn")
             status: Filter by repository status ("active", "inactive")
-            limit: Maximum number of results to return
+            limit: Maximum number of results to return (default: 50, max: 500)
+            max_tokens: Maximum token budget for response (default: 5000)
 
         Returns:
-            List of repositories matching the criteria
+            List of repositories matching the criteria with pagination metadata
         """
         client = get_client_func()
 
@@ -671,11 +734,26 @@ def register_tools(  # noqa: C901
             constraints=constraints if constraints else None, limit=limit
         )
 
+        # Apply token optimization
+        if max_tokens and result.get("data"):
+            data = result["data"]
+            if len(data) > 10:  # Further reduce limit for token optimization
+                result["data"] = data[:10]
+                result["token_optimization"] = {
+                    "applied": True,
+                    "original_count": len(data),
+                    "returned_count": 10,
+                    "reason": "Token budget optimization",
+                }
+
+        # Add pagination metadata
+        result = _add_pagination_metadata(result, result.get("cursor"))
+
         return {"success": True, "repositories": result}
 
     @mcp.tool()
     @handle_api_errors
-    def create_repository(
+    def pha_repository_create(
         name: str,
         vcs_type: str = "git",
         description: str = "",
@@ -706,7 +784,7 @@ def register_tools(  # noqa: C901
 
     @mcp.tool()
     @handle_api_errors
-    def get_repository_info(repository_identifier: str) -> dict:
+    def pha_repository_info(repository_identifier: str) -> dict:
         """
         Get detailed information about a specific repository.
 
@@ -777,21 +855,24 @@ def register_tools(  # noqa: C901
 
     @mcp.tool()
     @handle_api_errors
-    def browse_repository_files(
+    @optimize_token_usage
+    def pha_repository_browse(
         repository: str,
         path: str = "/",
         commit: str = "",
+        max_tokens: int = 5000,
     ) -> dict:
         """
-        Browse files and directories in a repository.
+        Browse files and directories in a repository with token optimization.
 
         Args:
             repository: Repository identifier (PHID, callsign, or name)
             path: Path to browse (default: root "/")
             commit: Specific commit to browse (default: latest)
+            max_tokens: Maximum token budget for response (default: 5000)
 
         Returns:
-            List of files and directories at the specified path
+            List of files and directories at the specified path with pagination metadata
         """
         client = get_client_func()
 
@@ -801,11 +882,26 @@ def register_tools(  # noqa: C901
             commit=commit if commit else None,
         )
 
+        # Apply token optimization to large browse results
+        if max_tokens and result.get("data") and isinstance(result["data"], list):
+            data = result["data"]
+            if len(data) > 50:  # Limit directory listing for token optimization
+                result["data"] = data[:50]
+                result["token_optimization"] = {
+                    "applied": True,
+                    "original_count": len(data),
+                    "returned_count": 50,
+                    "reason": "Token budget optimization for directory listing",
+                }
+
+        # Add pagination metadata
+        result = _add_pagination_metadata(result, result.get("cursor"))
+
         return {"success": True, "browse_result": result}
 
     @mcp.tool()
     @handle_api_errors
-    def get_file_content(
+    def pha_repository_file_content(
         repository: str,
         file_path: str,
         commit: str = "",
@@ -831,23 +927,26 @@ def register_tools(  # noqa: C901
 
     @mcp.tool()
     @handle_api_errors
-    def get_repository_history(
+    @optimize_token_usage
+    def pha_repository_history(
         repository: str,
         path: str = "",
         commit: str = "",
         limit: int = 20,
+        max_tokens: int = 5000,
     ) -> dict:
         """
-        Get commit history for a repository or specific path.
+        Get commit history for a repository or specific path with token optimization.
 
         Args:
             repository: Repository identifier (PHID, callsign, or name)
             path: Specific path to get history for (optional)
             commit: Starting commit (default: latest)
-            limit: Maximum number of commits to return
+            limit: Maximum number of commits to return (default: 20, max: 100)
+            max_tokens: Maximum token budget for response (default: 5000)
 
         Returns:
-            Commit history
+            Commit history with pagination metadata
         """
         client = get_client_func()
 
@@ -858,11 +957,26 @@ def register_tools(  # noqa: C901
             limit=limit,
         )
 
+        # Apply token optimization
+        if max_tokens and result.get("data"):
+            data = result["data"]
+            if len(data) > 15:  # Further reduce limit for token optimization
+                result["data"] = data[:15]
+                result["token_optimization"] = {
+                    "applied": True,
+                    "original_count": len(data),
+                    "returned_count": 15,
+                    "reason": "Token budget optimization",
+                }
+
+        # Add pagination metadata
+        result = _add_pagination_metadata(result, result.get("cursor"))
+
         return {"success": True, "history": result}
 
     @mcp.tool()
     @handle_api_errors
-    def get_repository_branches(repository: str) -> dict:
+    def pha_repository_branches(repository: str) -> dict:
         """
         Get all branches in a repository.
 
@@ -880,7 +994,7 @@ def register_tools(  # noqa: C901
 
     @mcp.tool()
     @handle_api_errors
-    def search_repository_commits(
+    def pha_repository_commits_search(
         repository: str = "",
         author: str = "",
         message_contains: str = "",
@@ -918,7 +1032,7 @@ def register_tools(  # noqa: C901
 
     @mcp.tool()
     @handle_api_errors
-    def create_diff_from_content(
+    def pha_diff_create_from_content(
         diff_content: str,
         repository: str = "",
     ) -> dict:
@@ -956,7 +1070,7 @@ def register_tools(  # noqa: C901
 
     @mcp.tool()
     @handle_api_errors
-    def create_code_review(
+    def pha_diff_create(
         diff_id: str,
         title: str,
         summary: str = "",
@@ -996,16 +1110,18 @@ def register_tools(  # noqa: C901
 
     @mcp.tool()
     @handle_api_errors
-    def search_code_reviews(
+    @optimize_token_usage
+    def pha_diff_search(
         author: str = "",
         reviewer: str = "",
         status: str = "",
         repository: str = "",
         title_contains: str = "",
         limit: int = 50,
+        max_tokens: int = 5000,
     ) -> dict:
         """
-        Search for code reviews (Differential revisions).
+        Search for code reviews (Differential revisions) with token optimization.
 
         Args:
             author: Filter by author username or PHID
@@ -1013,10 +1129,11 @@ def register_tools(  # noqa: C901
             status: Filter by status ("open", "closed", "abandoned", "accepted")
             repository: Filter by repository name or PHID
             title_contains: Filter by title containing this text
-            limit: Maximum number of results to return
+            limit: Maximum number of results to return (default: 50, max: 500)
+            max_tokens: Maximum token budget for response (default: 5000)
 
         Returns:
-            List of matching code reviews
+            List of matching code reviews with pagination metadata
         """
         client = get_client_func()
 
@@ -1036,11 +1153,26 @@ def register_tools(  # noqa: C901
             constraints=constraints if constraints else None, limit=limit
         )
 
+        # Apply token optimization
+        if max_tokens and result.get("data"):
+            data = result["data"]
+            if len(data) > 10:  # Further reduce limit for token optimization
+                result["data"] = data[:10]
+                result["token_optimization"] = {
+                    "applied": True,
+                    "original_count": len(data),
+                    "returned_count": 10,
+                    "reason": "Token budget optimization",
+                }
+
+        # Add pagination metadata
+        result = _add_pagination_metadata(result, result.get("cursor"))
+
         return {"success": True, "revisions": result}
 
     @mcp.tool()
     @handle_api_errors
-    def get_code_review_details(revision_id: str) -> dict:
+    def pha_diff_get(revision_id: str) -> dict:
         """
         Get detailed information about a specific code review.
 
@@ -1067,7 +1199,7 @@ def register_tools(  # noqa: C901
 
     @mcp.tool()
     @handle_api_errors
-    def add_review_comment(
+    def pha_diff_add_comment(
         revision_id: str,
         comment: str,
         action: str = "comment",
@@ -1102,7 +1234,7 @@ def register_tools(  # noqa: C901
 
     @mcp.tool()
     @handle_api_errors
-    def update_code_review(
+    def pha_diff_update(
         revision_id: str,
         new_diff_id: str = "",
         title: str = "",
@@ -1150,7 +1282,7 @@ def register_tools(  # noqa: C901
 
     @mcp.tool()
     @handle_api_errors
-    def get_diff_content(diff_id: str) -> dict:
+    def pha_diff_get_content(diff_id: str) -> dict:
         """
         Get the raw content of a diff.
 
@@ -1172,58 +1304,7 @@ def register_tools(  # noqa: C901
 
     @mcp.tool()
     @handle_api_errors
-    def search_diffs(
-        revision_id: str = "",
-        repository: str = "",
-        author: str = "",
-        limit: int = 20,
-    ) -> dict:
-        """
-        Search for diffs in the system.
-
-        Args:
-            revision_id: Filter by specific revision ID
-            repository: Filter by repository name or PHID
-            author: Filter by author username or PHID
-            limit: Maximum number of results to return
-
-        Returns:
-            List of matching diffs
-        """
-        client = get_client_func()
-
-        constraints = {}
-        if revision_id:
-            # Convert revision ID to PHID for search
-            if revision_id.startswith("D"):
-                revision_id = revision_id[1:]
-
-            # First, search for the revision to get its PHID
-            revision_search = client.differential.search_revisions(
-                constraints={"ids": [int(revision_id)]}, limit=1
-            )
-
-            if revision_search.get("data"):
-                revision_phid = revision_search["data"][0]["phid"]
-                constraints["revisionPHIDs"] = [revision_phid]
-            else:
-                # Return empty result if revision not found
-                return {"success": True, "diffs": {"data": [], "cursor": {}}}
-
-        if repository:
-            constraints["repositories"] = [repository]
-        if author:
-            constraints["authors"] = [author]
-
-        result = client.differential.search_diffs(
-            constraints=constraints if constraints else None, limit=limit
-        )
-
-        return {"success": True, "diffs": result}
-
-    @mcp.tool()
-    @handle_api_errors
-    def get_commit_message_template(revision_id: str) -> dict:
+    def pha_diff_get_commit_message(revision_id: str) -> dict:
         """
         Get a commit message template for a code review.
 

@@ -1,6 +1,7 @@
 from typing import Any, Dict, List
 
-from .base import BasePhabricatorClient
+from src.client.base import BasePhabricatorClient
+from src.utils import build_search_params, build_transaction_params
 
 
 class ProjectClient(BasePhabricatorClient):
@@ -17,10 +18,10 @@ class ProjectClient(BasePhabricatorClient):
         Returns:
             Search results with project data
         """
-        params = {"limit": limit}
-        if constraints:
-            params["constraints"] = constraints
-
+        params = build_search_params(
+            constraints=constraints,
+            limit=limit,
+        )
         return self._make_request("project.search", params)
 
     def edit_project(
@@ -36,10 +37,10 @@ class ProjectClient(BasePhabricatorClient):
         Returns:
             Project data
         """
-        params = {"transactions": transactions}
-        if object_identifier:
-            params["objectIdentifier"] = object_identifier
-
+        params = build_transaction_params(
+            transactions=transactions,
+            object_identifier=object_identifier,
+        )
         return self._make_request("project.edit", params)
 
     def create_project(
@@ -81,10 +82,10 @@ class ProjectClient(BasePhabricatorClient):
         Returns:
             Column information
         """
-        params = {"limit": limit}
-        if constraints:
-            params["constraints"] = constraints
-
+        params = build_search_params(
+            constraints=constraints,
+            limit=limit,
+        )
         return self._make_request("project.column.search", params)
 
     def query_projects(self, constraints: Dict[str, Any] = None) -> Dict[str, Any]:
