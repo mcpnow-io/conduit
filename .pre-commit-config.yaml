@@ -1,29 +1,15 @@
 repos:
-  - repo: https://github.com/asottile/seed-isort-config
-    rev: v2.2.0
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.10
     hooks:
-      - id: seed-isort-config
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
 
-  - repo: https://github.com/pre-commit/mirrors-isort
-    rev: v5.10.1
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.6
     hooks:
-      - id: isort
-
-  - repo: https://github.com/psf/black
-    rev: 25.1.0
-    hooks:
-      - id: black
-        exclude: /(\\.eggs|\\.git|\\.hg|\\.mypy_cache|\\.nox|\\.tox|\\.venv|_build|buck-out|build|dist|migrations|_pb2)/
-
-  - repo: https://github.com/pycqa/flake8
-    rev: 7.3.0
-    hooks:
-      - id: flake8
-
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
-    hooks:
-      - id: end-of-file-fixer
-        files: .*.py$
-      - id: trailing-whitespace
-        files: .*.py$
+      - id: bandit
+        language_version: python3
+        exclude: /(migrations|_pb2)/
+        args: [ -r,  -c ,".bandit_scan.cfg", -f , "txt",  -o , "bandit_scan.log", "--exit-zero", $(git ls-files) ]

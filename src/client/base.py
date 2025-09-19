@@ -5,17 +5,7 @@ from typing import Any, Dict, Optional
 
 import httpx
 
-
-class PhabricatorAPIError(Exception):
-    def __init__(
-        self,
-        message: str,
-        error_code: Optional[str] = None,
-        error_info: Optional[str] = None,
-    ):
-        self.error_code = error_code
-        self.error_info = error_info
-        super().__init__(message)
+from src.utils import PhabricatorAPIError
 
 
 class BasePhabricatorClient(ABC):
@@ -94,24 +84,6 @@ class BasePhabricatorClient(ABC):
         """Close the HTTP client if we own it."""
         if self._owns_client and self.client:
             self.client.close()
-
-    @classmethod
-    def flatten_params(cls, d, prefix=""):
-        params = []
-        if isinstance(d, dict):
-            for k, v in d.items():
-                if prefix:
-                    new_prefix = f"{prefix}[{k}]"
-                else:
-                    new_prefix = str(k)
-                params.extend(cls.flatten_params(v, new_prefix))
-        elif isinstance(d, list):
-            for i, v in enumerate(d):
-                new_prefix = f"{prefix}[{i}]"
-                params.extend(cls.flatten_params(v, new_prefix))
-        else:
-            params.append((prefix, d))
-        return params
 
     def __enter__(self):
         """Context manager entry."""

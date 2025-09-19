@@ -1,6 +1,6 @@
 from typing import Any, Dict, List
 
-from .base import BasePhabricatorClient
+from src.client.base import BasePhabricatorClient
 
 
 class ConduitClient(BasePhabricatorClient):

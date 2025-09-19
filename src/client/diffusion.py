@@ -1,6 +1,7 @@
 from typing import Any, Dict, List
 
 from src.client.base import BasePhabricatorClient
+from src.utils import build_search_params, build_transaction_params
 
 
 class DiffusionClient(BasePhabricatorClient):
@@ -17,14 +18,10 @@ class DiffusionClient(BasePhabricatorClient):
         Returns:
             Repository search results
         """
-        params = {"limit": limit}
-
-        if constraints:
-            flattened_constraints = dict(
-                self.flatten_params(constraints, "constraints")
-            )
-            params.update(flattened_constraints)
-
+        params = build_search_params(
+            constraints=constraints,
+            limit=limit,
+        )
         return self._make_request("diffusion.repository.search", params)
 
     def edit_repository(
@@ -40,17 +37,10 @@ class DiffusionClient(BasePhabricatorClient):
         Returns:
             Repository data
         """
-        params = {}
-
-        if object_identifier:
-            params["objectIdentifier"] = object_identifier
-
-        if transactions:
-            params = {
-                **{k: v for k, v in self.flatten_params(transactions, "transactions")},
-                **params,
-            }
-
+        params = build_transaction_params(
+            transactions=transactions,
+            object_identifier=object_identifier,
+        )
         return self._make_request("diffusion.repository.edit", params)
 
     def create_repository(
@@ -108,14 +98,10 @@ class DiffusionClient(BasePhabricatorClient):
         Returns:
             Commit search results
         """
-        params = {"limit": limit}
-
-        if constraints:
-            flattened_constraints = dict(
-                self.flatten_params(constraints, "constraints")
-            )
-            params.update(flattened_constraints)
-
+        params = build_search_params(
+            constraints=constraints,
+            limit=limit,
+        )
         return self._make_request("diffusion.commit.search", params)
 
     def edit_commit(
@@ -131,14 +117,10 @@ class DiffusionClient(BasePhabricatorClient):
         Returns:
             Commit data
         """
-        params = {"objectIdentifier": object_identifier}
-
-        if transactions:
-            params = {
-                **{k: v for k, v in self.flatten_params(transactions, "transactions")},
-                **params,
-            }
-
+        params = build_transaction_params(
+            transactions=transactions,
+            object_identifier=object_identifier,
+        )
         return self._make_request("diffusion.commit.edit", params)
 
     def browse_query(

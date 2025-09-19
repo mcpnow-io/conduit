@@ -1,8 +1,7 @@
-import json
 from typing import Any, Dict, List, Optional, Union
 
-from .base import BasePhabricatorClient
-from .types import (
+from src.client.base import BasePhabricatorClient
+from src.client.types import (
     PHID,
     ManiphestSearchAttachments,
     ManiphestSearchConstraints,
@@ -10,6 +9,11 @@ from .types import (
     ManiphestTaskInfo,
     ManiphestTaskTransaction,
     PolicyID,
+)
+from src.utils import (
+    build_search_params,
+    build_transaction_params,
+    serialize_json_params,
 )
 
 
@@ -39,34 +43,15 @@ class ManiphestClient(BasePhabricatorClient):
         Returns:
             Search results with task data, cursor info, and attachments
         """
-        params = {"limit": limit}
-
-        if query_key:
-            params["queryKey"] = query_key
-
-        if constraints:
-            # Use flatten_params like edit_task does
-            flattened_constraints = dict(
-                self.flatten_params(constraints, "constraints")
-            )
-            params.update(flattened_constraints)
-
-        if attachments:
-            # Use flatten_params for attachments too
-            flattened_attachments = dict(
-                self.flatten_params(attachments, "attachments")
-            )
-            params.update(flattened_attachments)
-
-        if order:
-            params["order"] = order
-
-        if before:
-            params["before"] = before
-
-        if after:
-            params["after"] = after
-
+        params = build_search_params(
+            query_key=query_key,
+            constraints=constraints,
+            attachments=attachments,
+            order=order,
+            before=before,
+            after=after,
+            limit=limit,
+        )
         return self._make_request("maniphest.search", params)
 
     def get_task(self, task_id: int) -> ManiphestTaskInfo:
@@ -127,16 +112,19 @@ class ManiphestClient(BasePhabricatorClient):
             params["editPolicy"] = edit_policy
 
         if cc_phids:
-            params["ccPHIDs"] = json.dumps(cc_phids)
+            params["ccPHIDs"] = cc_phids
 
         if priority:
             params["priority"] = priority
 
         if project_phids:
-            params["projectPHIDs"] = json.dumps(project_phids)
+            params["projectPHIDs"] = project_phids
 
         if auxiliary:
-            params["auxiliary"] = json.dumps(auxiliary)
+            params["auxiliary"] = auxiliary
+
+        # Serialize list and dict fields to JSON
+        params = serialize_json_params(params)
 
         return self._make_request("maniphest.createtask", params)
 
@@ -162,10 +150,10 @@ class ManiphestClient(BasePhabricatorClient):
             params["objectIdentifier"] = object_identifier
 
         if transactions:
-            params = {
-                **{k: v for k, v in self.flatten_params(transactions, "transactions")},
-                **params,
-            }
+            params = build_transaction_params(
+                transactions=transactions,
+                object_identifier=object_identifier,
+            )
 
         return self._make_request("maniphest.edit", params)
 

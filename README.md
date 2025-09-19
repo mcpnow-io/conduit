@@ -6,9 +6,16 @@ Conduit is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io/intr
 
 **MCP Integration**: Ready-to-use MCP tools for task management
 
-**Type Safety**: Full type hints for better development experience
+**Type Safety**: Full type hints and runtime validation for better development experience
 
 **Secure**: Token-based authentication with environment variable configuration
+
+**Enhanced Features**:
+- Advanced error handling with detailed error codes and suggestions
+- Token optimization for efficient API responses
+- Smart pagination and intelligent data limiting
+- Runtime validation client for type safety
+- Configurable client with caching and retry mechanisms
 
 ## Usage
 ### Via `uvx`
@@ -78,29 +85,11 @@ There are many ways in which you can participate in this project, for example:
 * Review the [wiki](https://github.com/mcpnow-io/conduit/wiki) and make pull requests for anything from typos to additional and new content
 
 If you are interested in fixing issues and contributing directly to the code base, please see the document [How to Contribute](https://github.com/mcpnow-io/conduit/wiki/How-to-Contribute)：
-* [First-Time Setup](https://github.com/mcpnow-io/conduit/wiki/How-to-Contribute#first-time-setup) - Now uses modern `pyproject.toml` for dependency management
+* [First-Time Setup](https://github.com/mcpnow-io/conduit/wiki/How-to-Contribute#first-time-setup)
 * [Submitting a Pull Request](https://github.com/mcpnow-io/conduit/wiki/How-to-Contribute#submitting-a-pull-request)
 * [Running Unittests](https://github.com/mcpnow-io/conduit/wiki/How-to-Contribute#running-unittests)
 
-### Development Setup
-This project uses modern Python packaging with `pyproject.toml` for dependency management and build configuration. To set up for development:
-
-1. Install the package in editable mode with development dependencies:
-   ```sh
-   pip install -e .[dev]
-   ```
-
-2. Run pre-commit hooks to ensure code quality:
-   ```sh
-   pre-commit run -a
-   ```
-
-3. Run tests with coverage:
-   ```sh
-   coverage run -m pytest -s
-   ```
-
 ## License
-Copyright (c) 2025 mpcnow.io. All rights reserved.
+Copyright (c) 2025 mpcnow.io. all rights reserved.
 
 Licensed under the [MIT](LICENSE) license.

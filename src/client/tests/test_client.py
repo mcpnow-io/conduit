@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from src.client.base import BasePhabricatorClient
+from src.utils import flatten_params
 
 
 class TestBasePhabricatorClient(TestCase):
@@ -9,15 +9,13 @@ class TestBasePhabricatorClient(TestCase):
 
     def test_flatten_params(self):
         with self.subTest("flat_params"):
-            flatten = BasePhabricatorClient.flatten_params(
-                [{"x": 1, "y": 2}, {"z": 3, "a": 4}]
-            )
+            flatten = flatten_params([{"x": 1, "y": 2}, {"z": 3, "a": 4}])
             self.assertEqual(
                 flatten, [("[0][x]", 1), ("[0][y]", 2), ("[1][z]", 3), ("[1][a]", 4)]
             )
 
         with self.subTest("flat_params_with_prefix"):
-            flatten = BasePhabricatorClient.flatten_params(
+            flatten = flatten_params(
                 [{"x": 1, "y": 2}, {"z": 3, "a": 4}], prefix="test"
             )
             self.assertEqual(
