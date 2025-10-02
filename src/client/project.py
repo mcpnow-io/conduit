@@ -100,3 +100,88 @@ class ProjectClient(BasePhabricatorClient):
         """
         params = constraints or {}
         return self._make_request("project.query", params)
+
+    def create_column(
+        self, project_phid: str, name: str, limit: int = None
+    ) -> Dict[str, Any]:
+        """
+        Create a new workboard column in a project.
+
+        Args:
+            project_phid: PHID of the project to create column in
+            name: Name of the column
+            limit: Column limit (optional)
+
+        Returns:
+            Created column data
+        """
+        transactions = [
+            {"type": "name", "value": name},
+            {"type": "projectPHID", "value": project_phid},
+        ]
+
+        if limit is not None:
+            transactions.append({"type": "limit", "value": str(limit)})
+
+        params = build_transaction_params(transactions=transactions)
+        return self._make_request("project.column.create", params)
+
+    def edit_column(
+        self, column_phid: str, transactions: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """
+        Edit an existing workboard column.
+
+        Args:
+            column_phid: PHID of the column to edit
+            transactions: List of transaction objects
+
+        Returns:
+            Updated column data
+        """
+        params = build_transaction_params(
+            transactions=transactions, object_identifier=column_phid
+        )
+        return self._make_request("project.column.edit", params)
+
+    def delete_column(self, column_phid: str) -> Dict[str, Any]:
+        """
+        Delete a workboard column.
+
+        Args:
+            column_phid: PHID of the column to delete
+
+        Returns:
+            Deletion result
+        """
+        params = {"objectIdentifier": column_phid}
+        return self._make_request("project.column.delete", params)
+
+    # Convenience methods for common column operations
+    def update_column_name(self, column_phid: str, new_name: str) -> Dict[str, Any]:
+        """
+        Update the name of a workboard column.
+
+        Args:
+            column_phid: PHID of the column to update
+            new_name: New name for the column
+
+        Returns:
+            Updated column data
+        """
+        transactions = [{"type": "name", "value": new_name}]
+        return self.edit_column(column_phid, transactions)
+
+    def update_column_limit(self, column_phid: str, limit: int) -> Dict[str, Any]:
+        """
+        Update the task limit of a workboard column.
+
+        Args:
+            column_phid: PHID of the column to update
+            limit: New task limit for the column
+
+        Returns:
+            Updated column data
+        """
+        transactions = [{"type": "limit", "value": str(limit)}]
+        return self.edit_column(column_phid, transactions)
