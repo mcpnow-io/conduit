@@ -8,8 +8,15 @@ Conduit is a Model Context Protocol (MCP) server that provides seamless integrat
 - **Main Server** (`src/conduit.py`): FastMCP-based server with dual transport modes (stdio/HTTP-SSE)
 - **Unified Client** (`src/client/unified.py`): Main client with enhanced features (caching, retries, token optimization)
 - **Modular Clients** (`src/client/*.py`): Specialized clients for different Phabricator APIs (maniphest, differential, diffusion, etc.)
-- **Tools Registry** (`src/main_tools.py`): MCP tool definitions with smart pagination and error handling
-- **Type System** (`src/client/types.py`): Runtime validation with TypedDict definitions
+
+### Supported API Modules
+- **Maniphest** (`maniphest.py`): Task management - search, create, and edit tasks
+- **Differential** (`differential.py`): Code review - search, create, and manage differential revisions
+- **Diffusion** (`diffusion.py`): Repository management - search repositories, browse code, get commit information
+- **File** (`file.py`): File management - search, upload, and download files
+- **User** (`user.py`): User management - get user information, query user details
+- **Project** (`project.py`): Project management - search projects, manage project members
+- **Conduit** (`misc.py`): System interface - ping, get server capabilities, system information
 
 ### Transport Modes
 - **Stdio Mode**: Single-user, token from `PHABRICATOR_TOKEN` environment variable
