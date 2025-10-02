@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from fastmcp import FastMCP
 
@@ -58,7 +58,7 @@ def register_differential_tools(
         title: str,
         summary: str = "",
         test_plan: str = "",
-        reviewers: List[str] = [],
+        reviewers: Optional[List[str]] = None,
     ) -> dict:
         """
         Create a new code review (Differential revision).
@@ -73,6 +73,10 @@ def register_differential_tools(
         Returns:
             Created revision information
         """
+        # Initialize None parameters to empty lists
+        if reviewers is None:
+            reviewers = []
+
         client = get_client_func()
 
         transactions = [

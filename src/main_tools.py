@@ -181,9 +181,9 @@ def register_tools(  # noqa: C901
     @optimize_token_usage
     def pha_user_search(
         query_key: str = "",
-        ids: List[int] = [],
-        phids: List[str] = [],
-        usernames: List[str] = [],
+        ids: Optional[List[int]] = None,
+        phids: Optional[List[str]] = None,
+        usernames: Optional[List[str]] = None,
         name_like: str = "",
         is_admin: bool = None,
         is_disabled: bool = None,
@@ -226,6 +226,14 @@ def register_tools(  # noqa: C901
         Returns:
             Search results with user data, pagination metadata, and token optimization info
         """
+        # Initialize None parameters to empty lists
+        if ids is None:
+            ids = []
+        if phids is None:
+            phids = []
+        if usernames is None:
+            usernames = []
+
         client = get_client_func()
 
         # Build constraints
@@ -501,7 +509,7 @@ def register_tools(  # noqa: C901
     def pha_task_update_relationships(
         task_id: str,
         relationship_type: Literal["subtask", "parent"],
-        target_ids: List[str],
+        target_ids: str,
     ) -> dict:
         """
         Update task relationships (subtasks or parents).
@@ -509,7 +517,7 @@ def register_tools(  # noqa: C901
         Args:
             task_id: The ID, PHID of the task to update
             relationship_type: Type of relationship ("subtask" or "parent")
-            target_ids: List of target task IDs/PHIDs, comma separated
+            target_ids: Comma-separated list of target task IDs/PHIDs
 
         Returns:
             Success status
@@ -550,12 +558,12 @@ def register_tools(  # noqa: C901
     @optimize_token_usage
     def pha_task_search_advanced(
         query_key: str = "",
-        assigned: List[str] = [],
-        author_phids: List[str] = [],
-        statuses: List[str] = [],
-        priorities: List[int] = [],
-        projects: List[str] = [],
-        subscribers: List[str] = [],
+        assigned: Optional[List[str]] = None,
+        author_phids: Optional[List[str]] = None,
+        statuses: Optional[List[str]] = None,
+        priorities: Optional[List[int]] = None,
+        projects: Optional[List[str]] = None,
+        subscribers: Optional[List[str]] = None,
         fulltext_query: str = "",
         has_parents: bool = None,
         has_subtasks: bool = None,
@@ -602,6 +610,20 @@ def register_tools(  # noqa: C901
         Returns:
             Search results with task data, pagination metadata, and token optimization info
         """
+        # Initialize None parameters to empty lists
+        if assigned is None:
+            assigned = []
+        if author_phids is None:
+            author_phids = []
+        if statuses is None:
+            statuses = []
+        if priorities is None:
+            priorities = []
+        if projects is None:
+            projects = []
+        if subscribers is None:
+            subscribers = []
+
         client = get_client_func()
 
         # Handle preset configurations
@@ -1075,7 +1097,7 @@ def register_tools(  # noqa: C901
         title: str,
         summary: str = "",
         test_plan: str = "",
-        reviewers: List[str] = [],
+        reviewers: Optional[List[str]] = None,
     ) -> dict:
         """
         Create a new code review (Differential revision).
@@ -1090,6 +1112,10 @@ def register_tools(  # noqa: C901
         Returns:
             Created revision information
         """
+        # Initialize None parameters to empty lists
+        if reviewers is None:
+            reviewers = []
+
         client = get_client_func()
 
         transactions = [
@@ -1331,13 +1357,13 @@ def register_tools(  # noqa: C901
     @optimize_token_usage
     def pha_project_search(
         query_key: str = "",
-        ids: List[int] = [],
-        phids: List[str] = [],
-        names: List[str] = [],
+        ids: Optional[List[int]] = None,
+        phids: Optional[List[str]] = None,
+        names: Optional[List[str]] = None,
         name_like: str = "",
-        slugs: List[str] = [],
-        ancestors: List[str] = [],
-        descendants: List[str] = [],
+        slugs: Optional[List[str]] = None,
+        ancestors: Optional[List[str]] = None,
+        descendants: Optional[List[str]] = None,
         depth: int = None,
         status: str = "",
         is_milestone: bool = None,
@@ -1371,6 +1397,20 @@ def register_tools(  # noqa: C901
         Returns:
             Search results with project data, pagination metadata, and token optimization info
         """
+        # Initialize None parameters to empty lists
+        if ids is None:
+            ids = []
+        if phids is None:
+            phids = []
+        if names is None:
+            names = []
+        if slugs is None:
+            slugs = []
+        if ancestors is None:
+            ancestors = []
+        if descendants is None:
+            descendants = []
+
         client = get_client_func()
 
         # Build constraints
@@ -1556,9 +1596,9 @@ def register_tools(  # noqa: C901
     @handle_api_errors
     @optimize_token_usage
     def pha_workboard_search_columns(
-        project_phids: List[str] = [],
-        phids: List[str] = [],
-        names: List[str] = [],
+        project_phids: Optional[List[str]] = None,
+        phids: Optional[List[str]] = None,
+        names: Optional[List[str]] = None,
         is_hidden: bool = None,
         limit: int = 100,
         max_tokens: int = 5000,
@@ -1577,6 +1617,14 @@ def register_tools(  # noqa: C901
         Returns:
             Search results with column data, pagination metadata, and token optimization info
         """
+        # Initialize None parameters to empty lists
+        if project_phids is None:
+            project_phids = []
+        if phids is None:
+            phids = []
+        if names is None:
+            names = []
+
         client = get_client_func()
 
         # Build constraints

@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, Optional
 
 from fastmcp import FastMCP
 
@@ -17,6 +17,27 @@ from src.client.types import (
 from src.client.unified import PhabricatorClient
 from src.tools.handlers import handle_api_errors
 from src.tools.optimization import optimize_token_usage
+
+
+def _add_pagination_metadata(result: dict, cursor: dict = None) -> dict:
+    """
+    Add pagination metadata to search results.
+
+    Args:
+        result: Original search result
+        cursor: Pagination cursor from API
+
+    Returns:
+        Result with enhanced pagination metadata
+    """
+    if cursor:
+        result["pagination"] = {
+            "cursor": cursor,
+            "has_more": cursor.get("after") is not None,
+            "limit": cursor.get("limit", 100),
+        }
+
+    return result
 
 
 def register_tools(  # noqa: C901
@@ -67,9 +88,9 @@ def register_tools(  # noqa: C901
     @optimize_token_usage
     def pha_user_search(
         query_key: str = "",
-        ids: list[int] = [],
-        phids: list[str] = [],
-        usernames: list[str] = [],
+        ids: Optional[list[int]] = None,
+        phids: Optional[list[str]] = None,
+        usernames: Optional[list[str]] = None,
         name_like: str = "",
         is_admin: bool = None,
         is_disabled: bool = None,
@@ -113,6 +134,14 @@ def register_tools(  # noqa: C901
         Returns:
             Search results with user data, pagination metadata, and token optimization info
         """
+        # Initialize None parameters to empty lists
+        if ids is None:
+            ids = []
+        if phids is None:
+            phids = []
+        if usernames is None:
+            usernames = []
+
         client = get_client_func()
 
         # Build constraints
@@ -437,12 +466,12 @@ def register_tools(  # noqa: C901
     @optimize_token_usage
     def pha_task_search_advanced(
         query_key: str = "",
-        assigned: list[str] = [],
-        author_phids: list[str] = [],
-        statuses: list[str] = [],
-        priorities: list[int] = [],
-        projects: list[str] = [],
-        subscribers: list[str] = [],
+        assigned: Optional[list[str]] = None,
+        author_phids: Optional[list[str]] = None,
+        statuses: Optional[list[str]] = None,
+        priorities: Optional[list[int]] = None,
+        projects: Optional[list[str]] = None,
+        subscribers: Optional[list[str]] = None,
         fulltext_query: str = "",
         has_parents: bool = None,
         has_subtasks: bool = None,
@@ -487,6 +516,20 @@ def register_tools(  # noqa: C901
         Returns:
             Search results with task data, pagination metadata, and token optimization info
         """
+        # Initialize None parameters to empty lists
+        if assigned is None:
+            assigned = []
+        if author_phids is None:
+            author_phids = []
+        if statuses is None:
+            statuses = []
+        if priorities is None:
+            priorities = []
+        if projects is None:
+            projects = []
+        if subscribers is None:
+            subscribers = []
+
         client = get_client_func()
 
         # Handle preset configurations
@@ -574,6 +617,9 @@ def register_tools(  # noqa: C901
                     "returned_count": 15,
                     "reason": "Token budget optimization",
                 }
+
+        # Add pagination metadata
+        result = _add_pagination_metadata(result, result.get("cursor"))
 
         return {"success": True, "results": result}
 
