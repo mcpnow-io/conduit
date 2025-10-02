@@ -1323,3 +1323,353 @@ def register_tools(  # noqa: C901
         result = client.differential.get_commit_message(revision_id=int(revision_id))
 
         return {"success": True, "commit_message": result}
+
+    # Project API Tools
+
+    @mcp.tool()
+    @handle_api_errors
+    @optimize_token_usage
+    def pha_project_search(
+        query_key: str = "",
+        ids: List[int] = [],
+        phids: List[str] = [],
+        names: List[str] = [],
+        name_like: str = "",
+        slugs: List[str] = [],
+        ancestors: List[str] = [],
+        descendants: List[str] = [],
+        depth: int = None,
+        status: str = "",
+        is_milestone: bool = None,
+        has_parent: bool = None,
+        icon: str = "",
+        color: str = "",
+        limit: int = 100,
+        max_tokens: int = 5000,
+    ) -> dict:
+        """
+        Search for projects with advanced filtering capabilities and token optimization.
+
+        Args:
+            query_key: Builtin query ("active", "all", "archived")
+            ids: List of specific project IDs to search for
+            phids: List of specific project PHIDs to search for
+            names: List of exact project names to find
+            name_like: Find projects whose names contain this substring
+            slugs: List of project slugs to find
+            ancestors: Find projects with these ancestors (PHIDs)
+            descendants: Find projects with these descendants (PHIDs)
+            depth: Maximum depth to search for ancestors/descendants
+            status: Filter by project status ("active", "archived")
+            is_milestone: Filter for milestone projects
+            has_parent: Filter for projects with/without parents
+            icon: Filter by project icon
+            color: Filter by project color
+            limit: Maximum number of results to return (default: 100, max: 1000)
+            max_tokens: Maximum token budget for response (default: 5000)
+
+        Returns:
+            Search results with project data, pagination metadata, and token optimization info
+        """
+        client = get_client_func()
+
+        # Build constraints
+        constraints = {}
+
+        if ids:
+            constraints["ids"] = ids
+        if phids:
+            constraints["phids"] = phids
+        if names:
+            constraints["names"] = names
+        if name_like:
+            constraints["nameLike"] = name_like
+        if slugs:
+            constraints["slugs"] = slugs
+        if ancestors:
+            constraints["ancestors"] = ancestors
+        if descendants:
+            constraints["descendants"] = descendants
+        if depth is not None:
+            constraints["depth"] = depth
+        if status:
+            constraints["status"] = status
+        if is_milestone is not None:
+            constraints["isMilestone"] = is_milestone
+        if has_parent is not None:
+            constraints["hasParent"] = has_parent
+        if icon:
+            constraints["icon"] = icon
+        if color:
+            constraints["color"] = color
+
+        result = client.project.search_projects(
+            constraints=constraints if constraints else None,
+            limit=limit,
+        )
+
+        # Add pagination metadata
+        result = _add_pagination_metadata(result, result.get("cursor"))
+
+        return {"success": True, "projects": result}
+
+    @mcp.tool()
+    @handle_api_errors
+    def pha_project_create(
+        name: str,
+        description: str = "",
+        icon: str = "",
+        color: str = "",
+    ) -> dict:
+        """
+        Create a new project in Phabricator.
+
+        Args:
+            name: Project name (required)
+            description: Project description
+            icon: Project icon (e.g., "fa-briefcase", "fa-users")
+            color: Project color (e.g., "red", "blue", "green")
+
+        Returns:
+            Created project information
+        """
+        client = get_client_func()
+
+        result = client.project.create_project(
+            name=name,
+            description=description,
+            icon=icon if icon else None,
+            color=color if color else None,
+        )
+
+        return {"success": True, "project": result}
+
+    @mcp.tool()
+    @handle_api_errors
+    def pha_project_get(project_identifier: str) -> dict:
+        """
+        Get detailed information about a specific project.
+
+        Args:
+            project_identifier: Project ID, PHID, name, or slug
+
+        Returns:
+            Project information
+        """
+        client = get_client_func()
+
+        # Try different search strategies based on identifier format
+        result = None
+
+        # 1. If it looks like a PHID, search by PHID
+        if project_identifier.startswith("PHID-PROJ-"):
+            result = client.project.search_projects(
+                constraints={"phids": [project_identifier]},
+                limit=1,
+            )
+
+        # 2. If it's numeric, search by ID
+        elif project_identifier.isdigit():
+            result = client.project.search_projects(
+                constraints={"ids": [int(project_identifier)]},
+                limit=1,
+            )
+
+        # 3. Try searching by name or slug
+        if not result or not result.get("data"):
+            result = client.project.search_projects(
+                constraints={"nameLike": project_identifier},
+                limit=10,
+            )
+            # Filter for exact match
+            if result.get("data"):
+                exact_match = None
+                for project in result["data"]:
+                    fields = project.get("fields", {})
+                    if (
+                        fields.get("name") == project_identifier
+                        or fields.get("slug") == project_identifier
+                    ):
+                        exact_match = project
+                        break
+
+                if exact_match:
+                    result = {"data": [exact_match]}
+
+        if result and result.get("data"):
+            return {"success": True, "project": result["data"][0]}
+        else:
+            return {
+                "success": False,
+                "error": f"Project '{project_identifier}' not found",
+            }
+
+    @mcp.tool()
+    @handle_api_errors
+    def pha_project_update(
+        project_phid: str,
+        name: str = "",
+        description: str = "",
+        icon: str = "",
+        color: str = "",
+    ) -> dict:
+        """
+        Update an existing project in Phabricator.
+
+        Args:
+            project_phid: Project PHID to update
+            name: New project name
+            description: New project description
+            icon: New project icon
+            color: New project color
+
+        Returns:
+            Updated project information
+        """
+        client = get_client_func()
+
+        # Build transactions
+        transactions = []
+
+        if name:
+            transactions.append({"type": "name", "value": name})
+        if description:
+            transactions.append({"type": "description", "value": description})
+        if icon:
+            transactions.append({"type": "icon", "value": icon})
+        if color:
+            transactions.append({"type": "color", "value": color})
+
+        if not transactions:
+            return {"success": False, "error": "No updates specified"}
+
+        result = client.project.edit_project(
+            transactions=transactions,
+            object_identifier=project_phid,
+        )
+
+        return {"success": True, "project": result}
+
+    # Workboard Tools
+
+    @mcp.tool()
+    @handle_api_errors
+    @optimize_token_usage
+    def pha_workboard_search_columns(
+        project_phids: List[str] = [],
+        phids: List[str] = [],
+        names: List[str] = [],
+        is_hidden: bool = None,
+        limit: int = 100,
+        max_tokens: int = 5000,
+    ) -> dict:
+        """
+        Search for workboard columns with filtering capabilities and token optimization.
+
+        Args:
+            project_phids: List of project PHIDs to search columns in
+            phids: List of specific column PHIDs to search for
+            names: List of column names to find
+            is_hidden: Filter for hidden/visible columns
+            limit: Maximum number of results to return (default: 100, max: 1000)
+            max_tokens: Maximum token budget for response (default: 5000)
+
+        Returns:
+            Search results with column data, pagination metadata, and token optimization info
+        """
+        client = get_client_func()
+
+        # Build constraints
+        constraints = {}
+
+        if project_phids:
+            constraints["projects"] = project_phids
+        if phids:
+            constraints["phids"] = phids
+        if names:
+            constraints["names"] = names
+        if is_hidden is not None:
+            constraints["isHidden"] = is_hidden
+
+        result = client.project.search_columns(
+            constraints=constraints if constraints else None,
+            limit=limit,
+        )
+
+        # Add pagination metadata
+        result = _add_pagination_metadata(result, result.get("cursor"))
+
+        return {"success": True, "columns": result}
+
+    @mcp.tool()
+    @handle_api_errors
+    def pha_workboard_move_task(
+        task_id: str,
+        column_phid: str,
+        before_phid: str = "",
+        after_phid: str = "",
+    ) -> dict:
+        """
+        Move a task to a specific workboard column with optional positioning.
+
+        Args:
+            task_id: Task ID or PHID to move
+            column_phid: Target column PHID
+            before_phid: Position before this task PHID (optional)
+            after_phid: Position after this task PHID (optional)
+
+        Returns:
+            Success status and updated task information
+        """
+        client = get_client_func()
+
+        # Create column transaction
+        transaction = client.maniphest.create_column_transaction(
+            column_phid=column_phid,
+            before_phids=[before_phid] if before_phid else None,
+            after_phids=[after_phid] if after_phid else None,
+        )
+
+        # Apply the transaction
+        result = client.maniphest.edit_task(
+            object_identifier=task_id,
+            transactions=[transaction],
+        )
+
+        return {"success": True, "task": result}
+
+    @mcp.tool()
+    @handle_api_errors
+    @optimize_token_usage
+    def pha_workboard_search_tasks_by_column(
+        column_phid: str,
+        limit: int = 100,
+        max_tokens: int = 5000,
+    ) -> dict:
+        """
+        Search for tasks in a specific workboard column.
+
+        Args:
+            column_phid: Column PHID to search tasks in
+            limit: Maximum number of results to return (default: 100, max: 1000)
+            max_tokens: Maximum token budget for response (default: 5000)
+
+        Returns:
+            Search results with task data, pagination metadata, and token optimization info
+        """
+        client = get_client_func()
+
+        # Build constraints for column search
+        constraints = {
+            "columnPHIDs": [column_phid],
+        }
+
+        result = client.maniphest.search_tasks(
+            constraints=constraints,
+            limit=limit,
+        )
+
+        # Add pagination metadata
+        result = _add_pagination_metadata(result, result.get("cursor"))
+
+        return {"success": True, "tasks": result}

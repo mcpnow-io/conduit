@@ -2,25 +2,21 @@
 
 ## Architecture Overview
 
-Conduit is a Model Context Protocol (MCP) server that provides seamless integration with Phabricator and Phorge APIs. The architecture follows a modular client pattern with unified entry points.
+Conduit is a Model Context Protocol (MCP) server that provides seamless integration with Phabricator and Phorge APIs through a modular client pattern with unified entry points.
 
-### Core Components
+### Core Architecture
 - **Main Server** (`src/conduit.py`): FastMCP-based server with dual transport modes (stdio/HTTP-SSE)
-- **Unified Client** (`src/client/unified.py`): Main client with enhanced features (caching, retries, token optimization)
-- **Modular Clients** (`src/client/*.py`): Specialized clients for different Phabricator APIs (maniphest, differential, diffusion, etc.)
+- **Unified Client** (`src/client/unified.py`): Enhanced client with caching, retries, and token optimization
+- **Modular Clients** (`src/client/*.py`): Specialized clients for different Phabricator APIs
 
-### Supported API Modules
-- **Maniphest** (`maniphest.py`): Task management - search, create, and edit tasks
-- **Differential** (`differential.py`): Code review - search, create, and manage differential revisions
-- **Diffusion** (`diffusion.py`): Repository management - search repositories, browse code, get commit information
-- **File** (`file.py`): File management - search, upload, and download files
-- **User** (`user.py`): User management - get user information, query user details
-- **Project** (`project.py`): Project management - search projects, manage project members
-- **Conduit** (`misc.py`): System interface - ping, get server capabilities, system information
-
-### Transport Modes
-- **Stdio Mode**: Single-user, token from `PHABRICATOR_TOKEN` environment variable
-- **HTTP/SSE Mode**: Multi-user, token from `X-PHABRICATOR-TOKEN` header, use `--host/--port` flags
+### Supported APIs
+- **Maniphest**: Task management (search, create, edit tasks)
+- **Differential**: Code review (search, create, manage revisions)
+- **Diffusion**: Repository management (search, browse, commits)
+- **File**: File management (search, upload, download)
+- **User**: User management (information, queries)
+- **Project**: Project management (search, members, workboards)
+- **Conduit**: System interface (ping, capabilities, info)
 
 ## Development Workflow
 
@@ -37,15 +33,22 @@ export PHABRICATOR_DISABLE_CERT_VERIFY=1  # Optional (security risk)
 ```
 
 ### Testing
+To run unittests, you need to install Docker on your environment to run Phorge in the background.
 ```bash
-# Run all tests with coverage
-coverage run -m pytest -s
+cd tests
+docker build -t phorge_debug .
+docker run -d --rm -p 8080:80 --name phorge_debug phorge_debug
+```
+Use `docker ps` to determine whether the user has run the phorge image already. The phorge_debug container will automatically initialize the Phorge environment, enable username/password authorization, and generate a User API key for the default admin user with password `Passw0rd`. By default, you can access your locally running Phorge instance at http://127.0.0.1:8080/.
 
-# Pre-commit hooks (includes flake8, bandit security scan)
-pre-commit run -a
+You can retrieve the User API Key by entering the following command:
+```bash
+docker exec phorge_debug /usr/local/bin/get-api-token.sh
+```
 
-# Integration testing requires Docker environment
-cd tests/ && docker build -t phorge_debug .
+Before executing any Python code or command, you need to activate the Python virtual environment first. Use `source xxx/bin/activate` to activate venv. After that, you can run unittest (or any Python command) locally by this command:
+```bash
+PHABRICATOR_TOKEN=<api-token> PHABRICATOR_URL=http://127.0.0.1:8080/api/ pytest # or any Python command
 ```
 
 ### Code Quality Tools
@@ -150,9 +153,37 @@ client.maniphest.edit_task(task_id, transactions)
 4. **Error Codes**: Use structured error responses, not raw exceptions
 5. **Type Safety**: Runtime validation is optional - check `enable_type_safety` parameter
 
-## Performance Considerations
+## FastMCP Debugging Guide
 
-- Enable caching for read-heavy operations (`enable_cache=True`)
-- Use token optimization for large search results
-- Configure appropriate timeouts for network conditions
-- Monitor connection pool usage in high-concurrency scenarios
+### List MCP Tools
+```python
+import asyncio
+from fastmcp import FastMCP
+
+async def list_tools():
+    mcp = FastMCP('test')
+    # Register tools first
+    register_tools(mcp, get_client_func)
+    
+    tools = await mcp.get_tools()
+    print(f"Total tools: {len(tools)}")
+    print("Tool names:", list(tools.keys()))
+
+asyncio.run(list_tools())
+```
+
+### Debug Tool Registration
+```python
+# Check specific tool
+tools = await mcp.get_tools()
+if 'pha_project_search' in tools:
+    tool = tools['pha_project_search']
+    print(f"Tool: {tool.name}")
+    print(f"Description: {tool.description}")
+```
+
+### FastMCP Key Points
+- `mcp.get_tools()` returns dict with tool names as keys
+- Tools must be defined inside `register_tools()` function
+- Use `@mcp.tool()` decorator to expose functions
+- Error handling with `@handle_api_errors` decorator
