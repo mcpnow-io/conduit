@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 
-from src.conduit import main
+from conduit.conduit import main
 
 project_root = Path(__file__).parent
 if str(project_root) not in sys.path:

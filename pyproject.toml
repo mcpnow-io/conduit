@@ -57,9 +57,7 @@ test = [
 ]
 
 [project.scripts]
-conduit-mcp = "src.conduit:main"
+conduit-mcp = "conduit.conduit:main"
 
 [tool.setuptools.packages.find]
-where = ["src"]
-include = ["*"]
 exclude = ["tests*"]
