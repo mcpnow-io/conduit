@@ -79,7 +79,7 @@ diffs = client.differential.search_revisions(author_phids=[user_phid])
 ### MCP Tool Development
 - All tools use `@handle_api_errors` decorator for structured error responses
 - Apply `@optimize_token_usage` for search results that may return large datasets
-- Use type-safe transaction objects from `src.client.types` for updates
+- Use type-safe transaction objects from `conduit.client.types` for updates
 - Follow naming convention: `pha_<module>_<action>` (e.g., `pha_task_search_advanced`)
 
 ### Error Handling
@@ -102,7 +102,7 @@ diffs = client.differential.search_revisions(author_phids=[user_phid])
 
 ### Type Safety
 - Optional runtime validation via `enable_type_safety` parameter
-- TypedDict definitions for all API responses in `src.client/types.py`
+- TypedDict definitions for all API responses in `conduit.client/types.py`
 - Validation decorators for function signatures
 
 ### Transaction Pattern
