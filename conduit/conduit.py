@@ -52,35 +52,40 @@ class ConduitApp:
 
     def get_client(self):
         """Get or create a Phabricator client instance."""
-        if self._client is not None:
-            return self._client
+        # In SSE mode, always create a fresh client for each request
+        # to prevent user identity confusion in multi-user environments
+        if self.use_sse:
+            headers = get_http_headers()
+            http_token = headers.get("x-phabricator-token")
 
-        headers = get_http_headers()
-        http_token = headers.get("x-phabricator-token")
+            if not http_token:
+                raise ValueError("Must provide X-PHABRICATOR-TOKEN in SSE mode.")
 
-        if http_token:
             if len(http_token) != 32:
                 raise ValueError(
                     "PHABRICATOR_TOKEN from HTTP header must be exactly 32 characters long"
                 )
 
-            self._client = PhabricatorClient(
+            return PhabricatorClient(
                 self.config.url,
                 http_token,
                 proxy=self.config.proxy,
                 disable_cert_verify=self.config.disable_cert_verify,
             )
-        elif self.use_sse:
-            raise ValueError("Must provide X-PHABRICATOR-TOKEN.")
-        else:
-            if not self.config.token:
-                raise ValueError("PHABRICATOR_TOKEN is required for stdio mode")
-            self._client = PhabricatorClient(
-                self.config.url,
-                self.config.token,
-                proxy=self.config.proxy,
-                disable_cert_verify=self.config.disable_cert_verify,
-            )
+
+        # For stdio mode, use cached client (backward compatibility)
+        if self._client is not None:
+            return self._client
+
+        if not self.config.token:
+            raise ValueError("PHABRICATOR_TOKEN is required for stdio mode")
+
+        self._client = PhabricatorClient(
+            self.config.url,
+            self.config.token,
+            proxy=self.config.proxy,
+            disable_cert_verify=self.config.disable_cert_verify,
+        )
         return self._client
 
     def register_tools(self):
