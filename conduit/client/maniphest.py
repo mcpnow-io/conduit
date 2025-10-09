@@ -338,15 +338,15 @@ class ManiphestClient(BasePhabricatorClient):
         after_phids: Optional[List[PHID]] = None,
     ) -> ManiphestTaskTransaction:
         """Create a transaction to move task to a workboard column."""
-        if before_phids or after_phids:
-            column_position = {"columnPHID": column_phid}
-            if before_phids:
-                column_position["beforePHIDs"] = before_phids
-            if after_phids:
-                column_position["afterPHIDs"] = after_phids
-            return {"type": "column", "value": [column_position]}
-        else:
-            return {"type": "column", "value": column_phid}
+        column_position = {"columnPHID": column_phid}
+
+        if before_phids:
+            column_position["beforePHIDs"] = before_phids
+        if after_phids:
+            column_position["afterPHIDs"] = after_phids
+
+        # Always return value as a list to maintain API consistency
+        return {"type": "column", "value": [column_position]}
 
     @staticmethod
     def create_space_transaction(space_phid: PHID) -> ManiphestTaskTransaction:
