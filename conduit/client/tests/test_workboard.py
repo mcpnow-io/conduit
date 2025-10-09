@@ -91,7 +91,10 @@ class TestWorkboardExistingFeatures(unittest.TestCase):
             column_phid="PHID-PCOL-EXAMPLE"
         )
         self.assertEqual(simple_tx["type"], "column")
-        self.assertEqual(simple_tx["value"], "PHID-PCOL-EXAMPLE")
+        # After fix: value should always be a list containing column position dict
+        self.assertIsInstance(simple_tx["value"], list)
+        self.assertEqual(len(simple_tx["value"]), 1)
+        self.assertEqual(simple_tx["value"][0]["columnPHID"], "PHID-PCOL-EXAMPLE")
 
         # Test 2: Column transaction with positioning
         positioned_tx = self.maniphest_client.create_column_transaction(
@@ -117,6 +120,9 @@ class TestWorkboardExistingFeatures(unittest.TestCase):
         )
         self.assertEqual(after_only_tx["type"], "column")
         self.assertIsInstance(after_only_tx["value"], list)
+        self.assertEqual(len(after_only_tx["value"]), 1)
+        self.assertEqual(after_only_tx["value"][0]["columnPHID"], "PHID-PCOL-EXAMPLE")
+        self.assertEqual(after_only_tx["value"][0]["afterPHIDs"], ["PHID-TASK-AFTER1"])
 
         # Test with just before_phids
         before_only_tx = self.maniphest_client.create_column_transaction(
@@ -124,6 +130,11 @@ class TestWorkboardExistingFeatures(unittest.TestCase):
         )
         self.assertEqual(before_only_tx["type"], "column")
         self.assertIsInstance(before_only_tx["value"], list)
+        self.assertEqual(len(before_only_tx["value"]), 1)
+        self.assertEqual(before_only_tx["value"][0]["columnPHID"], "PHID-PCOL-EXAMPLE")
+        self.assertEqual(
+            before_only_tx["value"][0]["beforePHIDs"], ["PHID-TASK-BEFORE1"]
+        )
 
     def test_workboard_data_structures(self):
         """Test Workboard-related data structures and API responses."""
