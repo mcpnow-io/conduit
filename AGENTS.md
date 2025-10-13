@@ -21,16 +21,40 @@ Conduit is a Model Context Protocol (MCP) server that provides seamless integrat
 ## Development Workflow
 
 ### Environment Setup
-```bash
-# Development installation
-pip install -e .[dev]
 
-# Required environment variables
-export PHABRICATOR_TOKEN="your-32-character-token"
-export PHABRICATOR_URL="https://your-phabricator-instance.com/api/"
-export PHABRICATOR_PROXY="socks5://127.0.0.1:1080"  # Optional
-export PHABRICATOR_DISABLE_CERT_VERIFY=1  # Optional (security risk)
+This project uses `uv` virtual environment. Before executing any Python code, activate the Python virtual environment first:
+```bash
+# Since this is a Phabricator MCP Server, you may set environment variables
+# Example environment variables (replace with your actual values):
+# export PHABRICATOR_TOKEN="your-32-character-token"
+# export PHABRICATOR_URL="https://your-phabricator-instance.com/api/"
+# export PHABRICATOR_PROXY="socks5://127.0.0.1:1080"  # Optional
+# export PHABRICATOR_DISABLE_CERT_VERIFY=1  # Optional (security risk)
+
+# Actual execution with environment variables:
+PHABRICATOR_TOKEN="your-32-character-token" \
+PHABRICATOR_URL="https://your-phabricator-instance.com/api/" \
+PHABRICATOR_PROXY="socks5://127.0.0.1:1080" \
+PHABRICATOR_DISABLE_CERT_VERIFY=1 \
+source venv/bin/activate && python your_script.py
+
+# Example, actual name may changed
+source venv/bin/activate && uv pip xxx
+source xxx && python xxx
 ```
+
+### MCP Server Execution Modes
+
+The Conduit MCP Server supports two execution modes:
+
+#### 1. Stdio Mode (Default)
+- **Required**: `PHABRICATOR_TOKEN`, `PHABRICATOR_URL`
+- **Run**: `python run.py`
+
+#### 2. HTTP/SSE Mode
+- **Required**: `PHABRICATOR_URL` only
+- **Token**: Provided via HTTP header `X-PHABRICATOR-TOKEN`
+- **Run**: `python run.py --host 127.0.0.1 --port 8000`
 
 ### Testing
 To run unittests, you need to install Docker on your environment to run Phorge in the background.
