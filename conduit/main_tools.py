@@ -1539,8 +1539,8 @@ def register_tools(  # noqa: C901
         # Create column transaction
         transaction = client.maniphest.create_column_transaction(
             column_phid=column_phid,
-            before_phids=[before_phid] if before_phid else None,
-            after_phids=[after_phid] if after_phid else None,
+            before_phid=before_phid or None,
+            after_phid=after_phid or None,
         )
 
         # Apply the transaction

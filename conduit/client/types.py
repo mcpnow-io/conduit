@@ -522,8 +522,8 @@ class ManiphestTaskTransactionParent(ManiphestTaskTransactionBase):
 
 class ManiphestTaskColumnPosition(TypedDict, total=False):
     columnPHID: PHID
-    beforePHIDs: List[PHID]
-    afterPHIDs: List[PHID]
+    beforePHID: PHID
+    afterPHID: PHID
 
 
 class ManiphestTaskTransactionColumn(ManiphestTaskTransactionBase):

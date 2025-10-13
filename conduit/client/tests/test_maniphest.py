@@ -368,26 +368,16 @@ class TestManiphestClient(TestCase):
             self.assertEqual(len(transaction["value"]), 1, "列表应该只包含一个元素")
 
             # 验证列位置对象
-            column_position = transaction["value"][0]
-            self.assertIsInstance(column_position, dict, "列表元素应该是字典格式")
             self.assertEqual(
-                column_position["columnPHID"],
+                transaction["value"][0],
                 test_column_phid,
-                "columnPHID 应该正确设置",
+                "简单列事务应该直接返回列 PHID",
             )
 
-            # 验证没有定位字段
-            self.assertNotIn(
-                "beforePHIDs", column_position, "简单列事务不应该包含 beforePHIDs"
-            )
-            self.assertNotIn(
-                "afterPHIDs", column_position, "简单列事务不应该包含 afterPHIDs"
-            )
-
-        with self.subTest("Column transaction with before_phids only"):
-            """测试只包含 before_phids 的列事务"""
+        with self.subTest("Column transaction with before_phid only"):
+            """测试只包含 before_phid 的列事务"""
             transaction = self.cli.create_column_transaction(
-                column_phid=test_column_phid, before_phids=[test_before_phid]
+                column_phid=test_column_phid, before_phid=test_before_phid
             )
 
             # 验证基本结构
@@ -400,18 +390,18 @@ class TestManiphestClient(TestCase):
             # 验证列位置对象
             column_position = transaction["value"][0]
             self.assertEqual(column_position["columnPHID"], test_column_phid)
-            self.assertIn("beforePHIDs", column_position, "应该包含 beforePHIDs")
+            self.assertIn("beforePHID", column_position, "应该包含 beforePHID")
             self.assertEqual(
-                column_position["beforePHIDs"],
-                [test_before_phid],
-                "beforePHIDs 应该正确设置",
+                column_position["beforePHID"],
+                test_before_phid,
+                "beforePHID 应该正确设置",
             )
-            self.assertNotIn("afterPHIDs", column_position, "不应该包含 afterPHIDs")
+            self.assertNotIn("afterPHID", column_position, "不应该包含 afterPHID")
 
-        with self.subTest("Column transaction with after_phids only"):
-            """测试只包含 after_phids 的列事务"""
+        with self.subTest("Column transaction with after_phid only"):
+            """测试只包含 after_phid 的列事务"""
             transaction = self.cli.create_column_transaction(
-                column_phid=test_column_phid, after_phids=[test_after_phid]
+                column_phid=test_column_phid, after_phid=test_after_phid
             )
 
             # 验证基本结构
@@ -424,20 +414,20 @@ class TestManiphestClient(TestCase):
             # 验证列位置对象
             column_position = transaction["value"][0]
             self.assertEqual(column_position["columnPHID"], test_column_phid)
-            self.assertNotIn("beforePHIDs", column_position, "不应该包含 beforePHIDs")
-            self.assertIn("afterPHIDs", column_position, "应该包含 afterPHIDs")
+            self.assertNotIn("beforePHID", column_position, "不应该包含 beforePHID")
+            self.assertIn("afterPHID", column_position, "应该包含 afterPHID")
             self.assertEqual(
-                column_position["afterPHIDs"],
-                [test_after_phid],
-                "afterPHIDs 应该正确设置",
+                column_position["afterPHID"],
+                test_after_phid,
+                "afterPHID 应该正确设置",
             )
 
-        with self.subTest("Column transaction with both before_phids and after_phids"):
-            """测试同时包含 before_phids 和 after_phids 的列事务"""
+        with self.subTest("Column transaction with both before_phid and after_phid"):
+            """测试同时包含 before_phid 和 after_phid 的列事务"""
             transaction = self.cli.create_column_transaction(
                 column_phid=test_column_phid,
-                before_phids=[test_before_phid],
-                after_phids=[test_after_phid],
+                before_phid=test_before_phid,
+                after_phid=test_after_phid,
             )
 
             # 验证基本结构
@@ -450,45 +440,17 @@ class TestManiphestClient(TestCase):
             # 验证列位置对象
             column_position = transaction["value"][0]
             self.assertEqual(column_position["columnPHID"], test_column_phid)
-            self.assertIn("beforePHIDs", column_position, "应该包含 beforePHIDs")
-            self.assertIn("afterPHIDs", column_position, "应该包含 afterPHIDs")
+            self.assertIn("beforePHID", column_position, "应该包含 beforePHID")
+            self.assertIn("afterPHID", column_position, "应该包含 afterPHID")
             self.assertEqual(
-                column_position["beforePHIDs"],
-                [test_before_phid],
-                "beforePHIDs 应该正确设置",
+                column_position["beforePHID"],
+                test_before_phid,
+                "beforePHID 应该正确设置",
             )
             self.assertEqual(
-                column_position["afterPHIDs"],
-                [test_after_phid],
-                "afterPHIDs 应该正确设置",
-            )
-
-        with self.subTest("Column transaction with multiple positioning PHIDs"):
-            """测试多个定位 PHID 的列事务"""
-            multiple_before = ["PHID-TASK-BEFORE1", "PHID-TASK-BEFORE2"]
-            multiple_after = ["PHID-TASK-AFTER1", "PHID-TASK-AFTER2"]
-
-            transaction = self.cli.create_column_transaction(
-                column_phid=test_column_phid,
-                before_phids=multiple_before,
-                after_phids=multiple_after,
-            )
-
-            # 验证基本结构
-            self.assertEqual(transaction["type"], "column")
-            self.assertIsInstance(transaction["value"], list)
-            self.assertEqual(len(transaction["value"]), 1)
-
-            # 验证列位置对象
-            column_position = transaction["value"][0]
-            self.assertEqual(column_position["columnPHID"], test_column_phid)
-            self.assertEqual(
-                column_position["beforePHIDs"],
-                multiple_before,
-                "应该支持多个 beforePHIDs",
-            )
-            self.assertEqual(
-                column_position["afterPHIDs"], multiple_after, "应该支持多个 afterPHIDs"
+                column_position["afterPHID"],
+                test_after_phid,
+                "afterPHID 应该正确设置",
             )
 
         with self.subTest("Type consistency across all variants"):
@@ -498,17 +460,17 @@ class TestManiphestClient(TestCase):
                 self.cli.create_column_transaction(column_phid=test_column_phid),
                 # 只包含 before
                 self.cli.create_column_transaction(
-                    column_phid=test_column_phid, before_phids=[test_before_phid]
+                    column_phid=test_column_phid, before_phid=test_before_phid
                 ),
                 # 只包含 after
                 self.cli.create_column_transaction(
-                    column_phid=test_column_phid, after_phids=[test_after_phid]
+                    column_phid=test_column_phid, after_phid=test_after_phid
                 ),
                 # 包含两者
                 self.cli.create_column_transaction(
                     column_phid=test_column_phid,
-                    before_phids=[test_before_phid],
-                    after_phids=[test_after_phid],
+                    before_phid=test_before_phid,
+                    after_phid=test_after_phid,
                 ),
             ]
 
@@ -526,14 +488,27 @@ class TestManiphestClient(TestCase):
                         1,
                         f"变体 {i} 的列表应该只包含一个元素",
                     )
-                    self.assertIsInstance(
-                        transaction["value"][0], dict, f"变体 {i} 的列表元素应该是字典"
-                    )
-                    self.assertEqual(
-                        transaction["value"][0]["columnPHID"],
-                        test_column_phid,
-                        f"变体 {i} 的 columnPHID 应该正确",
-                    )
+                    first_value = transaction["value"][0]
+                    if i == 0:
+                        self.assertIsInstance(
+                            first_value, str, f"变体 {i} 的简易事务应该返回字符串 PHID"
+                        )
+                        self.assertEqual(
+                            first_value,
+                            test_column_phid,
+                            f"变体 {i} 的列 PHID 应该正确",
+                        )
+                    else:
+                        self.assertIsInstance(
+                            first_value,
+                            dict,
+                            f"变体 {i} 的定位事务应该返回字典结构",
+                        )
+                        self.assertEqual(
+                            first_value["columnPHID"],
+                            test_column_phid,
+                            f"变体 {i} 的 columnPHID 应该正确",
+                        )
 
     def test_column_transaction_prevents_api_error(self):
         """
@@ -559,14 +534,10 @@ class TestManiphestClient(TestCase):
         # 验证列表内容
         self.assertGreater(len(transaction["value"]), 0, "列表不能为空")
         self.assertIsInstance(
-            transaction["value"][0], dict, "列表元素必须是包含列位置信息的字典"
+            transaction["value"][0], str, "简单移动应该直接返回列 PHID 字符串"
         )
-
-        # 验证列位置信息结构
-        column_position = transaction["value"][0]
-        self.assertIn("columnPHID", column_position, "必须包含 columnPHID 字段")
         self.assertEqual(
-            column_position["columnPHID"], test_column_phid, "columnPHID 值必须正确"
+            transaction["value"][0], test_column_phid, "columnPHID 值必须正确"
         )
 
         # 这个测试确保了修复的有效性，防止回归
