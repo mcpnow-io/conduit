@@ -91,16 +91,13 @@ class TestWorkboardExistingFeatures(unittest.TestCase):
             column_phid="PHID-PCOL-EXAMPLE"
         )
         self.assertEqual(simple_tx["type"], "column")
-        # After fix: value should always be a list containing column position dict
-        self.assertIsInstance(simple_tx["value"], list)
-        self.assertEqual(len(simple_tx["value"]), 1)
-        self.assertEqual(simple_tx["value"][0]["columnPHID"], "PHID-PCOL-EXAMPLE")
+        self.assertEqual(simple_tx["value"], ["PHID-PCOL-EXAMPLE"])
 
         # Test 2: Column transaction with positioning
         positioned_tx = self.maniphest_client.create_column_transaction(
             column_phid="PHID-PCOL-EXAMPLE",
-            before_phids=["PHID-TASK-BEFORE1", "PHID-TASK-BEFORE2"],
-            after_phids=["PHID-TASK-AFTER1"],
+            before_phid="PHID-TASK-BEFORE1",
+            after_phid="PHID-TASK-AFTER1",
         )
         self.assertEqual(positioned_tx["type"], "column")
         self.assertIsInstance(positioned_tx["value"], list)
@@ -108,33 +105,29 @@ class TestWorkboardExistingFeatures(unittest.TestCase):
 
         column_position = positioned_tx["value"][0]
         self.assertEqual(column_position["columnPHID"], "PHID-PCOL-EXAMPLE")
-        self.assertEqual(
-            column_position["beforePHIDs"], ["PHID-TASK-BEFORE1", "PHID-TASK-BEFORE2"]
-        )
-        self.assertEqual(column_position["afterPHIDs"], ["PHID-TASK-AFTER1"])
+        self.assertEqual(column_position["beforePHID"], "PHID-TASK-BEFORE1")
+        self.assertEqual(column_position["afterPHID"], "PHID-TASK-AFTER1")
 
         # Test 3: Multiple column transaction formats
-        # Test with just after_phids
+        # Test with just after_phid
         after_only_tx = self.maniphest_client.create_column_transaction(
-            column_phid="PHID-PCOL-EXAMPLE", after_phids=["PHID-TASK-AFTER1"]
+            column_phid="PHID-PCOL-EXAMPLE", after_phid="PHID-TASK-AFTER1"
         )
         self.assertEqual(after_only_tx["type"], "column")
         self.assertIsInstance(after_only_tx["value"], list)
         self.assertEqual(len(after_only_tx["value"]), 1)
         self.assertEqual(after_only_tx["value"][0]["columnPHID"], "PHID-PCOL-EXAMPLE")
-        self.assertEqual(after_only_tx["value"][0]["afterPHIDs"], ["PHID-TASK-AFTER1"])
+        self.assertEqual(after_only_tx["value"][0]["afterPHID"], "PHID-TASK-AFTER1")
 
-        # Test with just before_phids
+        # Test with just before_phid
         before_only_tx = self.maniphest_client.create_column_transaction(
-            column_phid="PHID-PCOL-EXAMPLE", before_phids=["PHID-TASK-BEFORE1"]
+            column_phid="PHID-PCOL-EXAMPLE", before_phid="PHID-TASK-BEFORE1"
         )
         self.assertEqual(before_only_tx["type"], "column")
         self.assertIsInstance(before_only_tx["value"], list)
         self.assertEqual(len(before_only_tx["value"]), 1)
         self.assertEqual(before_only_tx["value"][0]["columnPHID"], "PHID-PCOL-EXAMPLE")
-        self.assertEqual(
-            before_only_tx["value"][0]["beforePHIDs"], ["PHID-TASK-BEFORE1"]
-        )
+        self.assertEqual(before_only_tx["value"][0]["beforePHID"], "PHID-TASK-BEFORE1")
 
     def test_workboard_data_structures(self):
         """Test Workboard-related data structures and API responses."""
