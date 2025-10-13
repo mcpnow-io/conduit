@@ -20,20 +20,20 @@ Conduit is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io/intr
 ## Usage
 ### Via `uvx`
 You need to install `uv` first. If it is not installed, run the following command:
-```sh
+```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 After installation, restart your shell or terminal to apply the environment variable changes.
 
 Then run:
-```sh
+```bash
 uvx --from git+https://github.com/mcpnow-io/conduit conduit-mcp
 ```
 
 ### From Source
 To install from source for development or contribution:
 
-```sh
+```bash
 # Clone the repository
 git clone https://github.com/mcpnow-io/conduit.git
 cd conduit
@@ -50,7 +50,7 @@ We are still working on Docker support. We estimate it will be available soon.
 ### As HTTP/SSE Server
 Conduit can run as an HTTP/SSE server for multi-user scenarios. This mode allows multiple clients to connect simultaneously, each using their own authentication tokens.
 
-```sh
+```bash
 conduit-mcp --host 127.0.0.1 --port 8000
 ```
 When running as an HTTP server, authentication tokens are provided via HTTP headers instead of environment variables.
@@ -63,7 +63,7 @@ X-PHABRICATOR-TOKEN: your-32-character-token-here
 Before running the server, you need to set up the following environment variables:
 
 ### Environment Variables
-```sh
+```bash
 export PHABRICATOR_TOKEN=your-api-token-here
 export PHABRICATOR_URL="https://your-phabricator-instance.com/api/"
 

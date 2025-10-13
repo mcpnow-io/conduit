@@ -120,15 +120,15 @@ class TestNewFeatures(unittest.TestCase):
         # Check that it was initialized correctly
         self.assertEqual(type_safe_client.base_client, mock_base_client)
 
-    def test_register_tools_with_type_safety(self):
-        """Test register_tools function with type safety option."""
+    def test_register_tools_without_type_safety(self):
+        """Test register_tools function without type safety option."""
 
         mock_get_client_func = Mock()
         mock_get_client_func.return_value = self.mock_client
 
         # This should not raise an exception
         try:
-            register_tools(self.mock_mcp, mock_get_client_func, enable_type_safety=True)
+            register_tools(self.mock_mcp, mock_get_client_func)
         except Exception as e:
             self.fail(f"register_tools raised an exception: {e}")
 

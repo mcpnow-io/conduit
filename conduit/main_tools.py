@@ -1,5 +1,5 @@
 from functools import wraps
-from typing import Any, Callable, List, Literal, Optional
+from typing import Any, Callable, Dict, List, Literal, Optional
 
 from fastmcp import FastMCP
 
@@ -10,6 +10,9 @@ from conduit.client.types import (
     ManiphestTaskTransactionDescription,
     ManiphestTaskTransactionOwner,
     ManiphestTaskTransactionPriority,
+    ManiphestTaskTransactionProjectsAdd,
+    ManiphestTaskTransactionProjectsRemove,
+    ManiphestTaskTransactionProjectsSet,
     ManiphestTaskTransactionStatus,
     ManiphestTaskTransactionTitle,
     UserSearchAttachments,
@@ -136,7 +139,6 @@ def _add_pagination_metadata(result: dict, cursor: dict = None) -> dict:
 def register_tools(  # noqa: C901
     mcp: FastMCP,
     get_client_func: Callable[[], PhabricatorClient],
-    enable_type_safety: bool = False,
 ) -> None:
     """
     Register all MCP tools with the FastMCP instance.
@@ -144,35 +146,19 @@ def register_tools(  # noqa: C901
     Args:
         mcp: FastMCP instance to register tools with
         get_client_func: Function to get Phabricator client instance
-        enable_type_safety: Whether to enable type-safe client wrapper
     """
 
     @mcp.tool()
     @handle_api_errors
-    def pha_user_whoami(enable_type_safety: bool = False) -> dict:
+    def pha_user_whoami() -> dict:
         """
         Get the current user's information.
-
-        Args:
-            enable_type_safety: Enable runtime type validation
 
         Returns:
             User information
         """
         client = get_client_func()
-
-        # Apply type safety if requested
-        if enable_type_safety:
-            try:
-                from conduit.utils.validation import RuntimeValidationClient
-
-                type_safe_client = RuntimeValidationClient(client)
-                result = type_safe_client.get_user_info(client.user.whoami()["phid"])
-            except ImportError:
-                # Fallback to regular client if type_safe module not available
-                result = client.user.whoami()
-        else:
-            result = client.user.whoami()
+        result = client.user.whoami()
 
         return {"success": True, "user": result}
 
@@ -197,8 +183,6 @@ def register_tools(  # noqa: C901
         order: str = "",
         include_availability: bool = False,
         limit: int = 100,
-        max_tokens: int = 5000,
-        enable_type_safety: bool = False,
     ) -> dict:
         """
         Search for users with advanced filtering capabilities and token optimization.
@@ -221,7 +205,6 @@ def register_tools(  # noqa: C901
             order: Result ordering ("newest", "oldest", "relevance")
             include_availability: Include user availability information in results
             limit: Maximum number of results to return (default: 100, max: 1000)
-            max_tokens: Maximum token budget for response (default: 5000)
 
         Returns:
             Search results with user data, pagination metadata, and token optimization info
@@ -271,78 +254,14 @@ def register_tools(  # noqa: C901
         if include_availability:
             attachments["availability"] = True
 
-        # Apply type safety if requested
-        if enable_type_safety:
-            try:
-                from conduit.utils.validation import RuntimeValidationClient
-
-                type_safe_client = RuntimeValidationClient(client)
-
-                # Build constraints for type-safe client
-                type_safe_constraints = {}
-                if ids:
-                    type_safe_constraints["ids"] = ids
-                if phids:
-                    type_safe_constraints["phids"] = phids
-                if usernames:
-                    type_safe_constraints["usernames"] = usernames
-                if name_like:
-                    type_safe_constraints["nameLike"] = name_like
-                if is_admin is not None:
-                    type_safe_constraints["isAdmin"] = is_admin
-                if is_disabled is not None:
-                    type_safe_constraints["isDisabled"] = is_disabled
-                if is_bot is not None:
-                    type_safe_constraints["isBot"] = is_bot
-                if is_mailing_list is not None:
-                    type_safe_constraints["isMailingList"] = is_mailing_list
-                if needs_approval is not None:
-                    type_safe_constraints["needsApproval"] = needs_approval
-                if mfa is not None:
-                    type_safe_constraints["mfa"] = mfa
-                if created_start is not None:
-                    type_safe_constraints["createdStart"] = created_start
-                if created_end is not None:
-                    type_safe_constraints["createdEnd"] = created_end
-                if fulltext_query:
-                    type_safe_constraints["query"] = fulltext_query
-
-                result = type_safe_client.search_users(
-                    constraints=(
-                        type_safe_constraints if type_safe_constraints else None
-                    ),
-                    limit=limit,
-                )
-            except ImportError:
-                # Fallback to regular client if type_safe module not available
-                result = client.user.search(
-                    query_key=query_key or None,
-                    constraints=constraints if constraints else None,
-                    attachments=attachments if attachments else None,
-                    order=order or None,
-                    limit=limit,
-                )
-        else:
-            # Call the search API
-            result = client.user.search(
-                query_key=query_key or None,
-                constraints=constraints if constraints else None,
-                attachments=attachments if attachments else None,
-                order=order or None,
-                limit=limit,
-            )
-
-        # Apply token optimization
-        if max_tokens and result.get("data"):
-            data = result["data"]
-            if len(data) > 20:  # Further reduce limit for token optimization
-                result["data"] = data[:20]
-                result["token_optimization"] = {
-                    "applied": True,
-                    "original_count": len(data),
-                    "returned_count": 20,
-                    "reason": "Token budget optimization",
-                }
+        # Call the search API
+        result = client.user.search(
+            query_key=query_key or None,
+            constraints=constraints if constraints else None,
+            attachments=attachments if attachments else None,
+            order=order or None,
+            limit=limit,
+        )
 
         # Add pagination metadata
         result = _add_pagination_metadata(result, result.get("cursor"))
@@ -354,6 +273,17 @@ def register_tools(  # noqa: C901
     def pha_task_create(
         title: str, description: str = "", owner_phid: str = ""
     ) -> dict:
+        """
+        Create a new Phabricator task.
+
+        Args:
+            title: Task title
+            description: Task description
+            owner_phid: PHID of the user to assign this task to
+
+        Returns:
+            Created task information
+        """
         client = get_client_func()
         result = client.maniphest.create_task(
             title=title,
@@ -364,12 +294,12 @@ def register_tools(  # noqa: C901
 
     @mcp.tool()
     @handle_api_errors
-    def pha_task_get(task_id: int) -> dict:
+    def pha_task_get(task_id: str) -> dict:
         """
         Get details of a specific Phabricator task
 
         Args:
-            task_id: The ID of the task to retrieve, e.g. 1234
+            task_id: The numeric ID of the task to retrieve (e.g., 1234)
 
         Returns:
             Task details
@@ -387,6 +317,9 @@ def register_tools(  # noqa: C901
         priority: Optional[str] = None,
         status: Optional[str] = None,
         owner_phid: Optional[str] = None,
+        projects_add: Optional[List[str]] = None,
+        projects_remove: Optional[List[str]] = None,
+        projects_set: Optional[List[str]] = None,
     ) -> dict:
         """
         Update the metadata of a Phabricator task.
@@ -398,7 +331,9 @@ def register_tools(  # noqa: C901
             priority: The new priority for the task.
             status: The new status for the task.
             owner_phid: The PHID of the new owner for the task.
-
+            projects_add: List of project PHIDs to add the task to.
+            projects_remove: List of project PHIDs to remove the task from.
+            projects_set: List of project PHIDs to set (overwrites current projects).
 
         Returns:
             Success status.
@@ -427,6 +362,24 @@ def register_tools(  # noqa: C901
         if owner_phid is not None:
             transactions.append(
                 ManiphestTaskTransactionOwner(type="owner", value=owner_phid)
+            )
+        if projects_add is not None:
+            transactions.append(
+                ManiphestTaskTransactionProjectsAdd(
+                    type="projects.add", value=projects_add
+                )
+            )
+        if projects_remove is not None:
+            transactions.append(
+                ManiphestTaskTransactionProjectsRemove(
+                    type="projects.remove", value=projects_remove
+                )
+            )
+        if projects_set is not None:
+            transactions.append(
+                ManiphestTaskTransactionProjectsSet(
+                    type="projects.set", value=projects_set
+                )
             )
 
         client.maniphest.edit_task(
@@ -515,9 +468,9 @@ def register_tools(  # noqa: C901
         Update task relationships (subtasks or parents).
 
         Args:
-            task_id: The ID, PHID of the task to update
+            task_id: The PHID of the task to update (must be PHID format, not numeric ID)
             relationship_type: Type of relationship ("subtask" or "parent")
-            target_ids: Comma-separated list of target task IDs/PHIDs
+            target_ids: Comma-separated list of target task PHIDs (must be PHID format, not numeric IDs)
 
         Returns:
             Success status
@@ -579,7 +532,6 @@ def register_tools(  # noqa: C901
         preset: Literal[
             "all", "assigned", "authored", "open", "high_priority", "recent"
         ] = None,
-        max_tokens: int = 5000,
     ) -> dict:
         """
         Advanced task search with filtering, preset options, and token optimization.
@@ -605,7 +557,6 @@ def register_tools(  # noqa: C901
             include_columns: Include workboard column information in results
             limit: Maximum number of results to return (default: 100, max: 1000)
             preset: Preset search configurations for common use cases
-            max_tokens: Maximum token budget for response (default: 5000)
 
         Returns:
             Search results with task data, pagination metadata, and token optimization info
@@ -700,18 +651,6 @@ def register_tools(  # noqa: C901
             limit=limit,
         )
 
-        # Apply token optimization
-        if max_tokens and result.get("data"):
-            data = result["data"]
-            if len(data) > 15:  # Further reduce limit for token optimization
-                result["data"] = data[:15]
-                result["token_optimization"] = {
-                    "applied": True,
-                    "original_count": len(data),
-                    "returned_count": 15,
-                    "reason": "Token budget optimization",
-                }
-
         # Add pagination metadata
         result = _add_pagination_metadata(result, result.get("cursor"))
 
@@ -723,50 +662,27 @@ def register_tools(  # noqa: C901
     @handle_api_errors
     @optimize_token_usage
     def pha_repository_search(
-        name_contains: str = "",
-        vcs_type: str = "",
-        status: str = "",
+        constraints: Dict[str, Any] = None,
         limit: int = 50,
-        max_tokens: int = 5000,
     ) -> dict:
         """
         Search for repositories in Phabricator with token optimization.
 
         Args:
-            name_contains: Filter repositories by name containing this string
-            vcs_type: Filter by version control system ("git", "hg", "svn")
-            status: Filter by repository status ("active", "inactive")
+            constraints: Search constraints dictionary (e.g., {"query": "repo_name", "vcs": "git"})
             limit: Maximum number of results to return (default: 50, max: 500)
-            max_tokens: Maximum token budget for response (default: 5000)
 
         Returns:
-            List of repositories matching the criteria with pagination metadata
+            Repository search results with data list and pagination metadata
         """
         client = get_client_func()
 
-        constraints = {}
-        if name_contains:
-            constraints["name"] = name_contains
-        if vcs_type:
-            constraints["vcs"] = vcs_type
-        if status:
-            constraints["status"] = status
+        if constraints is None:
+            constraints = {}
 
         result = client.diffusion.search_repositories(
             constraints=constraints if constraints else None, limit=limit
         )
-
-        # Apply token optimization
-        if max_tokens and result.get("data"):
-            data = result["data"]
-            if len(data) > 10:  # Further reduce limit for token optimization
-                result["data"] = data[:10]
-                result["token_optimization"] = {
-                    "applied": True,
-                    "original_count": len(data),
-                    "returned_count": 10,
-                    "reason": "Token budget optimization",
-                }
 
         # Add pagination metadata
         result = _add_pagination_metadata(result, result.get("cursor"))
@@ -811,7 +727,7 @@ def register_tools(  # noqa: C901
         Get detailed information about a specific repository.
 
         Args:
-            repository_identifier: Repository ID, PHID, callsign, or name
+            repository_identifier: Repository ID (numeric or string), PHID, callsign, or name
 
         Returns:
             Repository information
@@ -882,7 +798,6 @@ def register_tools(  # noqa: C901
         repository: str,
         path: str = "/",
         commit: str = "",
-        max_tokens: int = 5000,
     ) -> dict:
         """
         Browse files and directories in a repository with token optimization.
@@ -891,7 +806,6 @@ def register_tools(  # noqa: C901
             repository: Repository identifier (PHID, callsign, or name)
             path: Path to browse (default: root "/")
             commit: Specific commit to browse (default: latest)
-            max_tokens: Maximum token budget for response (default: 5000)
 
         Returns:
             List of files and directories at the specified path with pagination metadata
@@ -903,18 +817,6 @@ def register_tools(  # noqa: C901
             path=path if path else "/",
             commit=commit if commit else None,
         )
-
-        # Apply token optimization to large browse results
-        if max_tokens and result.get("data") and isinstance(result["data"], list):
-            data = result["data"]
-            if len(data) > 50:  # Limit directory listing for token optimization
-                result["data"] = data[:50]
-                result["token_optimization"] = {
-                    "applied": True,
-                    "original_count": len(data),
-                    "returned_count": 50,
-                    "reason": "Token budget optimization for directory listing",
-                }
 
         # Add pagination metadata
         result = _add_pagination_metadata(result, result.get("cursor"))
@@ -955,7 +857,6 @@ def register_tools(  # noqa: C901
         path: str = "",
         commit: str = "",
         limit: int = 20,
-        max_tokens: int = 5000,
     ) -> dict:
         """
         Get commit history for a repository or specific path with token optimization.
@@ -965,7 +866,6 @@ def register_tools(  # noqa: C901
             path: Specific path to get history for (optional)
             commit: Starting commit (default: latest)
             limit: Maximum number of commits to return (default: 20, max: 100)
-            max_tokens: Maximum token budget for response (default: 5000)
 
         Returns:
             Commit history with pagination metadata
@@ -978,18 +878,6 @@ def register_tools(  # noqa: C901
             commit=commit if commit else None,
             limit=limit,
         )
-
-        # Apply token optimization
-        if max_tokens and result.get("data"):
-            data = result["data"]
-            if len(data) > 15:  # Further reduce limit for token optimization
-                result["data"] = data[:15]
-                result["token_optimization"] = {
-                    "applied": True,
-                    "original_count": len(data),
-                    "returned_count": 15,
-                    "reason": "Token budget optimization",
-                }
 
         # Add pagination metadata
         result = _add_pagination_metadata(result, result.get("cursor"))
@@ -1073,16 +961,17 @@ def register_tools(  # noqa: C901
         repository_phid = None
         if repository:
             # Try to resolve repository to PHID
-            repos = client.diffusion.search_repositories(
-                constraints=(
-                    {"callsigns": [repository]}
-                    if repository.isupper()
-                    else {"names": [repository]}
-                ),
-                limit=1,
-            )
-            if repos.get("data"):
-                repository_phid = repos["data"][0]["phid"]
+            try:
+                repos = client.diffusion.search_repositories(
+                    constraints={"query": repository},
+                    limit=1,
+                )
+                if repos.get("data"):
+                    repository_phid = repos["data"][0]["phid"]
+            except Exception:
+                # If query search fails, try direct PHID
+                if repository.startswith("PHID-"):
+                    repository_phid = repository
 
         result = client.differential.create_raw_diff(
             diff=diff_content, repository_phid=repository_phid
@@ -1103,7 +992,7 @@ def register_tools(  # noqa: C901
         Create a new code review (Differential revision).
 
         Args:
-            diff_id: ID or PHID of the diff to review
+            diff_id: PHID of the diff to review (use pha_diff_create_from_content to create a diff first)
             title: Review title
             summary: Detailed description of the changes
             test_plan: How the changes were tested
@@ -1144,7 +1033,6 @@ def register_tools(  # noqa: C901
         repository: str = "",
         title_contains: str = "",
         limit: int = 50,
-        max_tokens: int = 5000,
     ) -> dict:
         """
         Search for code reviews (Differential revisions) with token optimization.
@@ -1153,10 +1041,9 @@ def register_tools(  # noqa: C901
             author: Filter by author username or PHID
             reviewer: Filter by reviewer username or PHID
             status: Filter by status ("open", "closed", "abandoned", "accepted")
-            repository: Filter by repository name or PHID
+            repository: Filter by repository PHID (recommended) or name
             title_contains: Filter by title containing this text
             limit: Maximum number of results to return (default: 50, max: 500)
-            max_tokens: Maximum token budget for response (default: 5000)
 
         Returns:
             List of matching code reviews with pagination metadata
@@ -1178,18 +1065,6 @@ def register_tools(  # noqa: C901
         result = client.differential.search_revisions(
             constraints=constraints if constraints else None, limit=limit
         )
-
-        # Apply token optimization
-        if max_tokens and result.get("data"):
-            data = result["data"]
-            if len(data) > 10:  # Further reduce limit for token optimization
-                result["data"] = data[:10]
-                result["token_optimization"] = {
-                    "applied": True,
-                    "original_count": len(data),
-                    "returned_count": 10,
-                    "reason": "Token budget optimization",
-                }
 
         # Add pagination metadata
         result = _add_pagination_metadata(result, result.get("cursor"))
@@ -1273,7 +1148,7 @@ def register_tools(  # noqa: C901
 
         Args:
             revision_id: Revision ID (e.g., "D123") or PHID
-            new_diff_id: New diff ID or PHID to update the review with
+            new_diff_id: New diff PHID to update the review with
             title: New title (optional)
             summary: New summary (optional)
             test_plan: New test plan (optional)
@@ -1313,7 +1188,9 @@ def register_tools(  # noqa: C901
         Get the raw content of a diff.
 
         Args:
-            diff_id: Diff ID or PHID, you can use `search_diffds` with `D123` form id to get actual diff_id
+            diff_id: Numeric diff ID (e.g., "93806") or diff PHID.
+                    Note: This expects the actual diff ID, not the revision ID (D123 format).
+                    Use `pha_diff_get` first to get revision info, then extract the diff ID.
 
         Returns:
             Raw diff content
@@ -1371,7 +1248,6 @@ def register_tools(  # noqa: C901
         icon: str = "",
         color: str = "",
         limit: int = 100,
-        max_tokens: int = 5000,
     ) -> dict:
         """
         Search for projects with advanced filtering capabilities and token optimization.
@@ -1392,7 +1268,6 @@ def register_tools(  # noqa: C901
             icon: Filter by project icon
             color: Filter by project color
             limit: Maximum number of results to return (default: 100, max: 1000)
-            max_tokens: Maximum token budget for response (default: 5000)
 
         Returns:
             Search results with project data, pagination metadata, and token optimization info
@@ -1421,27 +1296,19 @@ def register_tools(  # noqa: C901
         if phids:
             constraints["phids"] = phids
         if names:
-            constraints["names"] = names
+            # Use name constraint for exact matches
+            if len(names) == 1:
+                constraints["name"] = names[0]
+            else:
+                # For multiple names, use query to search
+                constraints["query"] = " ".join(names)
         if name_like:
-            constraints["nameLike"] = name_like
-        if slugs:
-            constraints["slugs"] = slugs
-        if ancestors:
-            constraints["ancestors"] = ancestors
-        if descendants:
-            constraints["descendants"] = descendants
-        if depth is not None:
-            constraints["depth"] = depth
+            # Use query parameter for substring search (nameLike is not supported)
+            constraints["query"] = name_like
         if status:
             constraints["status"] = status
-        if is_milestone is not None:
-            constraints["isMilestone"] = is_milestone
-        if has_parent is not None:
-            constraints["hasParent"] = has_parent
-        if icon:
-            constraints["icon"] = icon
-        if color:
-            constraints["color"] = color
+        # Note: Some constraints like ancestors, descendants, etc. may not be supported
+        # by this Phorge instance. They are included for completeness.
 
         result = client.project.search_projects(
             constraints=constraints if constraints else None,
@@ -1491,7 +1358,8 @@ def register_tools(  # noqa: C901
         Get detailed information about a specific project.
 
         Args:
-            project_identifier: Project ID, PHID, name, or slug
+            project_identifier: Project ID (e.g., 850), PHID, name, slug, or numeric ID from URL
+                               (e.g., extract 850 from https://pha.example.com/project/view/850/)
 
         Returns:
             Project information
@@ -1515,12 +1383,21 @@ def register_tools(  # noqa: C901
                 limit=1,
             )
 
-        # 3. Try searching by name or slug
+        # 3. Try searching by name using name parameter first, then query as fallback
         if not result or not result.get("data"):
+            # First try exact name match
             result = client.project.search_projects(
-                constraints={"nameLike": project_identifier},
+                constraints={"name": project_identifier},
                 limit=10,
             )
+
+            # If no results with name, try query
+            if not result.get("data"):
+                result = client.project.search_projects(
+                    constraints={"query": project_identifier},
+                    limit=10,
+                )
+
             # Filter for exact match
             if result.get("data"):
                 exact_match = None
@@ -1598,10 +1475,7 @@ def register_tools(  # noqa: C901
     def pha_workboard_search_columns(
         project_phids: Optional[List[str]] = None,
         phids: Optional[List[str]] = None,
-        names: Optional[List[str]] = None,
-        is_hidden: bool = None,
         limit: int = 100,
-        max_tokens: int = 5000,
     ) -> dict:
         """
         Search for workboard columns with filtering capabilities and token optimization.
@@ -1609,10 +1483,7 @@ def register_tools(  # noqa: C901
         Args:
             project_phids: List of project PHIDs to search columns in
             phids: List of specific column PHIDs to search for
-            names: List of column names to find
-            is_hidden: Filter for hidden/visible columns
             limit: Maximum number of results to return (default: 100, max: 1000)
-            max_tokens: Maximum token budget for response (default: 5000)
 
         Returns:
             Search results with column data, pagination metadata, and token optimization info
@@ -1622,22 +1493,16 @@ def register_tools(  # noqa: C901
             project_phids = []
         if phids is None:
             phids = []
-        if names is None:
-            names = []
 
         client = get_client_func()
 
-        # Build constraints
+        # Build constraints - only use supported parameters
         constraints = {}
 
         if project_phids:
             constraints["projects"] = project_phids
         if phids:
             constraints["phids"] = phids
-        if names:
-            constraints["names"] = names
-        if is_hidden is not None:
-            constraints["isHidden"] = is_hidden
 
         result = client.project.search_columns(
             constraints=constraints if constraints else None,
@@ -1692,7 +1557,6 @@ def register_tools(  # noqa: C901
     def pha_workboard_search_tasks_by_column(
         column_phid: str,
         limit: int = 100,
-        max_tokens: int = 5000,
     ) -> dict:
         """
         Search for tasks in a specific workboard column.
@@ -1700,7 +1564,6 @@ def register_tools(  # noqa: C901
         Args:
             column_phid: Column PHID to search tasks in
             limit: Maximum number of results to return (default: 100, max: 1000)
-            max_tokens: Maximum token budget for response (default: 5000)
 
         Returns:
             Search results with task data, pagination metadata, and token optimization info
