@@ -106,6 +106,19 @@ diffs = client.differential.search_revisions(author_phids=[user_phid])
 - Use type-safe transaction objects from `conduit.client.types` for updates
 - Follow naming convention: `pha_<module>_<action>` (e.g., `pha_task_search_advanced`)
 
+### Differential Tools Usage Patterns
+```python
+# Get revision with complete diff history
+result = pha_diff_get("D123")
+revision = result["revision"]
+current_diff_phid = revision["fields"]["diffPHID"]
+all_diffs = revision["all_diffs"]  # All historical diffs
+
+# Get specific diff content using PHID
+diff_content = pha_diff_get_content(current_diff_phid)
+raw_diff = diff_content["diff_content"]
+```
+
 ### Error Handling
 ```python
 # Structured error responses
@@ -176,6 +189,8 @@ client.maniphest.edit_task(task_id, transactions)
 3. **Pagination**: Always handle cursor-based pagination for large result sets
 4. **Error Codes**: Use structured error responses, not raw exceptions
 5. **Type Safety**: Runtime validation is optional - check `enable_type_safety` parameter
+6. **Diff Content Access**: Use `pha_diff_get_content()` with PHID format, not numeric IDs
+7. **Revision History**: `pha_diff_get()` returns all diffs via `all_diffs` field for complete history
 
 ## FastMCP Debugging Guide
 
