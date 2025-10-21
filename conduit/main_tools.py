@@ -24,12 +24,12 @@ from conduit.client.unified import PhabricatorClient
 from conduit.tools.handlers import handle_api_errors
 
 
-# Pagination and Token Optimization Functions
+# Pagination Functions
 
 
 def _apply_smart_pagination(data: List[Any], limit: int = None) -> dict:
     """
-    Apply smart pagination to data with token optimization.
+    Apply smart pagination to data.
 
     Args:
         data: List of data items
@@ -66,16 +66,16 @@ def _apply_smart_pagination(data: List[Any], limit: int = None) -> dict:
 
 def optimize_token_usage(func: Callable) -> Callable:
     """
-    Decorator to optimize token usage by applying smart limits and truncation.
+    Decorator to apply smart limits and truncation to search results.
     """
 
     @wraps(func)
     def wrapper(*args, **kwargs):
         result = func(*args, **kwargs)
 
-        # Apply token optimization to search results
+        # Apply smart limits to search results
         if isinstance(result, dict) and "data" in result:
-            # Check if this is a search result that needs optimization
+            # Check if this is a search result that needs limits
             data = result["data"]
             if isinstance(data, list) and len(data) > 50:
                 # Apply smart pagination
@@ -185,7 +185,7 @@ def register_tools(  # noqa: C901
         limit: int = 100,
     ) -> dict:
         """
-        Search for users with advanced filtering capabilities and token optimization.
+        Search for users with advanced filtering capabilities.
 
         Args:
             query_key: Builtin query ("active", "admin", "all", "approval")
@@ -207,7 +207,7 @@ def register_tools(  # noqa: C901
             limit: Maximum number of results to return (default: 100, max: 1000)
 
         Returns:
-            Search results with user data, pagination metadata, and token optimization info
+            Search results with user data and pagination metadata
         """
         # Initialize None parameters to empty lists
         if ids is None:
@@ -534,7 +534,7 @@ def register_tools(  # noqa: C901
         ] = None,
     ) -> dict:
         """
-        Advanced task search with filtering, preset options, and token optimization.
+        Advanced task search with filtering and preset options.
 
         Args:
             query_key: Builtin query ("assigned", "authored", "subscribed", "open", "all")
@@ -559,7 +559,7 @@ def register_tools(  # noqa: C901
             preset: Preset search configurations for common use cases
 
         Returns:
-            Search results with task data, pagination metadata, and token optimization info
+            Search results with task data and pagination metadata
         """
         # Initialize None parameters to empty lists
         if assigned is None:
@@ -666,7 +666,7 @@ def register_tools(  # noqa: C901
         limit: int = 50,
     ) -> dict:
         """
-        Search for repositories in Phabricator with token optimization.
+        Search for repositories in Phabricator.
 
         Args:
             constraints: Search constraints dictionary (e.g., {"query": "repo_name", "vcs": "git"})
@@ -800,7 +800,7 @@ def register_tools(  # noqa: C901
         commit: str = "",
     ) -> dict:
         """
-        Browse files and directories in a repository with token optimization.
+        Browse files and directories in a repository.
 
         Args:
             repository: Repository identifier (PHID, callsign, or name)
@@ -859,7 +859,7 @@ def register_tools(  # noqa: C901
         limit: int = 20,
     ) -> dict:
         """
-        Get commit history for a repository or specific path with token optimization.
+        Get commit history for a repository or specific path.
 
         Args:
             repository: Repository identifier (PHID, callsign, or name)
@@ -1035,7 +1035,7 @@ def register_tools(  # noqa: C901
         limit: int = 50,
     ) -> dict:
         """
-        Search for code reviews (Differential revisions) with token optimization.
+        Search for code reviews (Differential revisions).
 
         Args:
             author: Filter by author username or PHID
@@ -1075,13 +1075,13 @@ def register_tools(  # noqa: C901
     @handle_api_errors
     def pha_diff_get(revision_id: str) -> dict:
         """
-        Get detailed information about a specific code review.
+        Get detailed information about a specific code review including all diffs.
 
         Args:
             revision_id: Revision ID (e.g., "D123") or PHID
 
         Returns:
-            Detailed revision information
+            Detailed revision information with all associated diffs
         """
         client = get_client_func()
 
@@ -1094,7 +1094,18 @@ def register_tools(  # noqa: C901
         )
 
         if result.get("data"):
-            return {"success": True, "revision": result["data"][0]}
+            revision = result["data"][0]
+
+            # Get all diffs associated with this revision
+            diffs = client.differential.search_diffs(
+                constraints={"revisionPHIDs": [revision["phid"]]},
+                limit=50,  # Allow many diffs for active revisions
+            )
+
+            # Add diffs to revision information
+            revision["all_diffs"] = diffs.get("data", [])
+
+            return {"success": True, "revision": revision}
         else:
             return {"success": False, "error": f"Revision {revision_id} not found"}
 
@@ -1183,25 +1194,45 @@ def register_tools(  # noqa: C901
 
     @mcp.tool()
     @handle_api_errors
-    def pha_diff_get_content(diff_id: str) -> dict:
+    def pha_diff_get_content(diff_phid: str) -> dict:
         """
-        Get the raw content of a diff.
+        Get the raw content of a diff using its PHID.
 
         Args:
-            diff_id: Numeric diff ID (e.g., "93806") or diff PHID.
-                    Note: This expects the actual diff ID, not the revision ID (D123 format).
-                    Use `pha_diff_get` first to get revision info, then extract the diff ID.
+            diff_phid: Diff PHID in format "PHID-DIFF-xxxxxxxxxxxxxxxxxxxx".
+                     Use `pha_diff_get` first to get revision info, then extract the diffPHID
+                     from the revision.fields.diffPHID field.
 
         Returns:
             Raw diff content
         """
         client = get_client_func()
 
-        # Parse diff ID if needed
-        if diff_id.isdigit():
-            diff_id = int(diff_id)
+        # Validate PHID format
+        if not diff_phid.startswith("PHID-DIFF-"):
+            return {
+                "success": False,
+                "error": f"Invalid diff PHID format: {diff_phid}. Expected format: PHID-DIFF-xxxxxxxxxxxxxxxxxxxx",
+                "error_code": "INVALID_PHID_FORMAT",
+            }
 
-        result = client.differential.get_raw_diff(diff_id=diff_id)
+        # Search for diff by PHID to get numeric ID
+        diffs = client.differential.search_diffs(
+            constraints={"phids": [diff_phid]}, limit=1
+        )
+
+        if not diffs.get("data"):
+            return {
+                "success": False,
+                "error": f"Diff not found with PHID: {diff_phid}",
+                "error_code": "DIFF_NOT_FOUND",
+            }
+
+        # Extract numeric ID and get raw diff content
+        diff_data = diffs["data"][0]
+        numeric_diff_id = diff_data["id"]
+
+        result = client.differential.get_raw_diff(diff_id=numeric_diff_id)
 
         return {"success": True, "diff_content": result}
 
@@ -1250,7 +1281,7 @@ def register_tools(  # noqa: C901
         limit: int = 100,
     ) -> dict:
         """
-        Search for projects with advanced filtering capabilities and token optimization.
+        Search for projects with advanced filtering capabilities.
 
         Args:
             query_key: Builtin query ("active", "all", "archived")
@@ -1270,7 +1301,7 @@ def register_tools(  # noqa: C901
             limit: Maximum number of results to return (default: 100, max: 1000)
 
         Returns:
-            Search results with project data, pagination metadata, and token optimization info
+            Search results with project data and pagination metadata
         """
         # Initialize None parameters to empty lists
         if ids is None:
@@ -1478,7 +1509,7 @@ def register_tools(  # noqa: C901
         limit: int = 100,
     ) -> dict:
         """
-        Search for workboard columns with filtering capabilities and token optimization.
+        Search for workboard columns with filtering capabilities.
 
         Args:
             project_phids: List of project PHIDs to search columns in
@@ -1486,7 +1517,7 @@ def register_tools(  # noqa: C901
             limit: Maximum number of results to return (default: 100, max: 1000)
 
         Returns:
-            Search results with column data, pagination metadata, and token optimization info
+            Search results with column data and pagination metadata
         """
         # Initialize None parameters to empty lists
         if project_phids is None:
@@ -1566,7 +1597,7 @@ def register_tools(  # noqa: C901
             limit: Maximum number of results to return (default: 100, max: 1000)
 
         Returns:
-            Search results with task data, pagination metadata, and token optimization info
+            Search results with task data and pagination metadata
         """
         client = get_client_func()
 
